@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+<!-- ══ PWA Meta ══════════════════════════════════════════════ -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="東京行程">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1a1714">
+<!--
+  ⚠️ manifest.json 的 start_url / scope 須與你的部署路徑一致：
+  GitHub Pages: /YOUR_REPO_NAME/index.html
+  自訂網域: /index.html
+-->
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" sizes="192x192" href="./icon-192.png">
+
+<title>東京快閃 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --bg:#f5f0eb;--surface:#fdfaf7;--surface2:#ede8e2;--border:#d9d2c8;
+  --text:#1a1714;--text2:#6b6560;--text3:#9e9792;
+  --accent:#c17b4e;--accent2:#e8a87c;
+  --sakura:#e8b4c0;--sakura2:#f5d5dc;
+  --sky:#7bafc4;--sky2:#b8d4e3;
+  --green:#7a9e7e;--red:#c05252;--gold:#c9a84c;
+  --radius:20px;--radius-sm:12px;
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;max-width:430px;margin:0 auto;overflow-x:hidden}
+
+/* ── screens ── */
+.screen{display:none;min-height:100vh;padding-bottom:calc(80px + var(--safe-bottom))}
+.screen.active{display:block}
+
+/* ── nav ── */
+.nav-bar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:rgba(253,250,247,.95);border-top:1px solid var(--border);display:flex;padding:8px 0 calc(8px + var(--safe-bottom));z-index:100;backdrop-filter:blur(16px)}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 0;cursor:pointer;transition:all .2s;border:none;background:none}
+.nav-item .nav-icon{font-size:22px;transition:transform .2s}
+.nav-item .nav-label{font-size:10px;color:var(--text3);font-weight:500;letter-spacing:.3px}
+.nav-item.active .nav-label{color:var(--accent)}
+.nav-item.active .nav-icon{transform:translateY(-2px)}
+
+/* ── sync bar ── */
+.sync-bar{position:fixed;top:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;z-index:200;pointer-events:none}
+.sync-pill{display:flex;align-items:center;justify-content:center;gap:8px;margin:10px 20px 0;padding:9px 20px;border-radius:100px;font-size:13px;font-weight:600;transition:all .35s;opacity:0;transform:translateY(-10px)}
+.sync-pill.show{opacity:1;transform:translateY(0)}
+.sync-pill.syncing{background:var(--text);color:#fff}
+.sync-pill.success{background:var(--green);color:#fff}
+.sync-pill.error{background:var(--red);color:#fff}
+.sync-pill.offline{background:var(--gold);color:#fff}
+.sync-spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── header ── */
+.page-header{padding:52px 24px 24px;background:linear-gradient(160deg,var(--surface) 0%,var(--bg) 100%)}
+.page-header small{font-size:11px;color:var(--text3);letter-spacing:2px;text-transform:uppercase;font-weight:500}
+.page-header h1{font-family:'DM Serif Display',serif;font-size:28px;margin-top:4px;line-height:1.2}
+.section{padding:0 20px;margin-bottom:24px}
+.section-title{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--text3);font-weight:600;margin-bottom:12px;padding-left:4px}
+
+/* ── hero card ── */
+#screen-home .page-header{background:linear-gradient(140deg,#fdf8f3 0%,#f8ede4 50%,#f2e4ee 100%);padding-top:56px}
+.hero-card{margin:0 20px 12px;background:var(--text);border-radius:var(--radius);padding:24px;color:#fff;position:relative;overflow:hidden}
+.hero-card::before{content:'東京';position:absolute;right:-10px;top:-20px;font-family:'DM Serif Display',serif;font-size:100px;opacity:.06;line-height:1}
+.hero-card .trip-label{font-size:11px;opacity:.5;letter-spacing:2px;text-transform:uppercase}
+.hero-card .trip-days{font-family:'DM Serif Display',serif;font-size:42px;line-height:1;margin:6px 0 2px}
+.hero-card .trip-sub{font-size:13px;opacity:.6}
+.hero-card .date-range{margin-top:20px;font-size:12px;opacity:.7;font-family:'JetBrains Mono',monospace}
+.countdown-pill{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.12);border-radius:100px;padding:6px 14px;font-size:13px;margin-top:12px}
+.countdown-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--accent2);animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+
+/* ── info grid ── */
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 20px;margin-bottom:16px}
+.info-card{background:var(--surface);border-radius:var(--radius-sm);padding:16px;border:1px solid var(--border)}
+.info-card .ic-label{font-size:10px;color:var(--text3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px}
+.info-card .ic-value{font-size:22px;font-weight:700;line-height:1}
+.info-card .ic-sub{font-size:11px;color:var(--text2);margin-top:4px}
+.info-card.weather .ic-value{color:var(--sky)}
+.info-card.hotel .ic-value{font-size:14px;font-weight:600;margin-top:4px;line-height:1.4}
+
+/* ── live expense card ── */
+.live-expense-card{margin:0 20px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;cursor:pointer}
+.lec-left .lec-label{font-size:10px;color:var(--text3);letter-spacing:1.5px;text-transform:uppercase}
+.lec-left .lec-value{font-size:24px;font-weight:700;font-family:'JetBrains Mono',monospace;margin-top:2px}
+.lec-left .lec-sub{font-size:12px;color:var(--text2);margin-top:2px}
+
+/* ── next stop ── */
+.next-stop{margin:0 20px 20px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px 20px}
+.next-stop .ns-label{font-size:10px;color:var(--accent);letter-spacing:2px;text-transform:uppercase;font-weight:600;margin-bottom:8px}
+.next-stop .ns-place{font-size:18px;font-weight:700}
+.next-stop .ns-time{font-size:13px;color:var(--text2);margin-top:2px}
+.next-stop .ns-maps{display:inline-flex;align-items:center;gap:6px;margin-top:12px;background:var(--accent);color:#fff;border:none;border-radius:100px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none}
+
+/* ── quick actions ── */
+.quick-actions{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:0 20px}
+.qa-btn{display:flex;flex-direction:column;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 8px;cursor:pointer;transition:all .2s;text-decoration:none;color:var(--text)}
+.qa-btn:active{transform:scale(.95);background:var(--surface2)}
+.qa-btn .qa-icon{font-size:24px}
+.qa-btn .qa-label{font-size:11px;color:var(--text2);font-weight:500;text-align:center;line-height:1.2}
+
+/* ── flight strip ── */
+.flight-strip{margin:0 20px 20px;background:linear-gradient(135deg,#1a1714 0%,#2d2825 100%);border-radius:var(--radius-sm);padding:16px 20px;color:#fff}
+.flight-strip .fs-label{font-size:10px;opacity:.5;letter-spacing:2px;text-transform:uppercase;margin-bottom:10px}
+.flight-row{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.flight-row:last-child{margin-bottom:0}
+.f-num{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--accent2);font-weight:600;width:52px}
+.f-route{flex:1;font-size:13px}
+.f-time{font-family:'JetBrains Mono',monospace;font-size:12px;opacity:.6}
+
+/* ── itinerary ── */
+.day-tabs{display:flex;gap:8px;padding:16px 20px 8px;overflow-x:auto;scrollbar-width:none}
+.day-tabs::-webkit-scrollbar{display:none}
+.day-tab{flex-shrink:0;padding:8px 20px;border-radius:100px;border:1.5px solid var(--border);background:var(--surface);font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;color:var(--text2)}
+.day-tab.active{background:var(--text);border-color:var(--text);color:#fff}
+.timeline{padding:16px 20px}
+.tl-item{display:flex;gap:16px;padding-bottom:24px}
+.tl-left{display:flex;flex-direction:column;align-items:center;width:56px;flex-shrink:0}
+.tl-time{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text3);font-weight:600;text-align:center}
+.tl-dot-wrap{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:6px 0;flex-shrink:0}
+.tl-dot-wrap.transport{background:var(--surface2)}
+.tl-dot-wrap.food{background:var(--sakura2)}
+.tl-dot-wrap.sightseeing{background:var(--sky2)}
+.tl-dot-wrap.hotel{background:#e8f0e8}
+.tl-dot-wrap.concert{background:#f0e8f8}
+.tl-dot-wrap.shopping{background:#fff8e0}
+.tl-dot-wrap .tl-dot{font-size:14px}
+.tl-line{width:1px;flex:1;background:linear-gradient(to bottom,var(--border),transparent);min-height:20px}
+.tl-item:last-child .tl-line{display:none}
+.tl-content{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;margin-top:4px}
+.tc-place{font-size:11px;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px}
+.tc-title{font-size:16px;font-weight:700;line-height:1.3}
+.tc-note{font-size:12px;color:var(--text2);margin-top:6px;line-height:1.5}
+.tc-budget{display:inline-block;background:var(--surface2);border-radius:6px;padding:3px 10px;font-size:12px;font-weight:600;margin-top:10px;font-family:'JetBrains Mono',monospace}
+.tc-maps-btn{display:inline-flex;align-items:center;gap:5px;margin-top:10px;margin-left:8px;background:none;border:1px solid var(--border);border-radius:100px;padding:4px 12px;font-size:12px;color:var(--sky);font-weight:600;cursor:pointer;text-decoration:none}
+
+/* ══ EXPENSE ══════════════════════════════════════════════════ */
+.expense-summary{margin:0 20px 20px;background:var(--text);border-radius:var(--radius);padding:20px 24px;color:#fff}
+.es-label{font-size:10px;opacity:.5;letter-spacing:2px;text-transform:uppercase}
+.es-total{font-family:'DM Serif Display',serif;font-size:40px;line-height:1.1;margin:8px 0 4px}
+.es-sub{font-size:13px;opacity:.6}
+.es-split{display:flex;gap:10px;margin-top:16px}
+.es-person{flex:1;background:rgba(255,255,255,.1);border-radius:var(--radius-sm);padding:10px 14px}
+.ep-name{font-size:11px;opacity:.6}
+.ep-amount{font-size:18px;font-weight:700;margin-top:2px;font-family:'JetBrains Mono',monospace}
+
+/* ── settlement card ── */
+.settlement-card{margin:0 20px 16px;border-radius:var(--radius-sm);overflow:hidden;border:1.5px solid var(--green)}
+.sc-header{background:var(--green);color:#fff;padding:12px 16px;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
+.sc-body{background:var(--surface);padding:14px 16px}
+.sc-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)}
+.sc-row:last-child{border-bottom:none}
+.sc-person{font-size:14px;font-weight:600}
+.sc-amount{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700}
+.sc-amount.owes{color:var(--red)}
+.sc-amount.receives{color:var(--green)}
+.sc-verdict{font-size:13px;color:var(--text2);margin-top:10px;text-align:center;padding-top:10px;border-top:1px solid var(--border)}
+.sc-verdict strong{color:var(--accent);font-family:'JetBrains Mono',monospace}
+
+/* ── currency ── */
+.currency-card{margin:0 20px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px 20px}
+.currency-card h3{font-size:13px;font-weight:700;margin-bottom:12px}
+.currency-inputs{display:flex;align-items:center;gap:10px}
+.ci-field{flex:1;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;font-size:16px;font-family:'JetBrains Mono',monospace;background:var(--bg);color:var(--text);outline:none;width:100%}
+.ci-field:focus{border-color:var(--accent)}
+.ci-label{font-size:11px;color:var(--text3);margin-top:4px;text-align:center}
+.ci-arrow{font-size:18px;color:var(--text3);flex-shrink:0}
+.rate-note{font-size:11px;color:var(--text3);text-align:center;margin-top:10px}
+
+/* ── action buttons ── */
+.primary-btn{display:flex;align-items:center;justify-content:center;gap:8px;margin:0 20px 14px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);padding:15px;font-size:15px;font-weight:700;cursor:pointer;width:calc(100% - 40px);transition:all .2s}
+.primary-btn:disabled{opacity:.6}
+.primary-btn:active:not(:disabled){transform:scale(.98)}
+
+/* ── expense list ── */
+.expense-list{padding:0 20px}
+.expense-item{display:flex;align-items:flex-start;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;margin-bottom:10px;position:relative;transition:opacity .3s}
+.expense-item.settled{opacity:.45}
+.expense-item.pending-sync{border-color:var(--gold)}
+.ei-icon{font-size:22px;width:38px;height:38px;background:var(--surface2);border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.ei-info{flex:1;min-width:0}
+.ei-name{font-size:15px;font-weight:600;line-height:1.3}
+.ei-meta{font-size:12px;color:var(--text2);margin-top:3px;line-height:1.5}
+.ei-tag{display:inline-block;background:var(--surface2);border-radius:4px;padding:2px 7px;font-size:11px;font-weight:600;margin-top:4px;font-family:'JetBrains Mono',monospace}
+.ei-right{text-align:right;flex-shrink:0;padding-top:1px}
+.ei-total{font-size:16px;font-weight:700;font-family:'JetBrains Mono',monospace}
+.ei-each{font-size:11px;color:var(--text2);margin-top:2px;font-family:'JetBrains Mono',monospace}
+.ei-actions{display:flex;gap:6px;margin-top:10px;justify-content:flex-end}
+.ei-act-btn{border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s}
+.ei-act-btn:active{transform:scale(.95)}
+.ei-act-settle{background:var(--surface2);color:var(--text2)}
+.ei-act-settle.done{background:#e8f0e8;color:var(--green)}
+.ei-act-edit{background:var(--sky2);color:var(--sky)}
+.ei-act-del{background:#fde8e8;color:var(--red)}
+.offline-badge{display:inline-block;background:var(--gold);color:#fff;border-radius:4px;padding:2px 6px;font-size:10px;font-weight:700;margin-left:6px;vertical-align:middle}
+
+/* ══ CHECKLIST ════════════════════════════════════════════════ */
+.checklist{padding:0 20px}
+.check-item{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;margin-bottom:10px;transition:all .2s}
+.check-item.all-done{opacity:.5}
+.check-box{width:22px;height:22px;border-radius:6px;border:2px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;transition:all .2s}
+.check-item.all-done .check-box{background:var(--green);border-color:var(--green);color:#fff}
+.ci-name{font-size:15px;font-weight:500;flex:1;min-width:0;word-break:break-all}
+.ci-right{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0}
+.ci-persons{display:flex;gap:6px}
+.person-badge{font-size:11px;font-weight:600;padding:4px 10px;border-radius:100px;border:1px solid var(--border);color:var(--text2);cursor:pointer;transition:all .2s;min-height:30px;display:flex;align-items:center}
+.person-badge.done{background:var(--green);border-color:var(--green);color:#fff}
+.ci-edit-actions{display:flex;gap:6px}
+.ci-edit-btn{border:none;border-radius:7px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer}
+.ci-edit-btn.edit{background:var(--sky2);color:var(--sky)}
+.ci-edit-btn.del{background:#fde8e8;color:var(--red)}
+.ci-edit-btn:active{transform:scale(.95)}
+
+/* ── edit inline ── */
+.ci-edit-input{border:1.5px solid var(--accent);border-radius:8px;padding:8px 12px;font-size:14px;font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text);outline:none;width:100%;margin-bottom:6px}
+.ci-edit-save{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-weight:700;cursor:pointer;margin-right:6px}
+.ci-edit-cancel{background:var(--surface2);color:var(--text2);border:none;border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer}
+
+/* ══ TOOLBOX ══════════════════════════════════════════════════ */
+.toolbox-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 20px}
+.tool-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:20px 16px;cursor:pointer;transition:all .2s;text-align:center}
+.tool-card:active{transform:scale(.96)}
+.tool-card .tc-emoji{font-size:36px;margin-bottom:10px}
+.tool-card .tc-name{font-size:14px;font-weight:700}
+.tool-card .tc-desc{font-size:11px;color:var(--text2);margin-top:4px;line-height:1.4}
+.phrases-list{padding:0 20px}
+.phrase-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:all .15s}
+.phrase-item:active{background:var(--surface2)}
+.pi-jp{font-size:17px;font-weight:700}
+.pi-rom{font-size:12px;color:var(--accent);font-style:italic;margin-top:2px}
+.pi-tw{font-size:13px;color:var(--text2);margin-top:4px}
+.qr-upload-area{margin:0 20px 20px;border:2px dashed var(--border);border-radius:var(--radius-sm);padding:40px 20px;text-align:center;cursor:pointer;transition:all .2s}
+.qr-upload-area:hover{border-color:var(--accent)}
+.qu-icon{font-size:48px;margin-bottom:12px}
+.qu-text{font-size:14px;font-weight:600}
+.qu-sub{font-size:12px;color:var(--text2);margin-top:4px}
+.qr-preview{margin:0 20px 20px;text-align:center}
+.qr-preview img{max-width:100%;border-radius:var(--radius-sm);border:1px solid var(--border)}
+.tool-panel{display:none}
+.tool-panel.open{display:block}
+
+/* ══ MODAL ════════════════════════════════════════════════════ */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);z-index:200;align-items:flex-end;max-width:430px;left:50%;transform:translateX(-50%)}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border-radius:var(--radius) var(--radius) 0 0;padding:24px;width:100%;animation:slideUp .3s ease;max-height:90vh;overflow-y:auto}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal h3{font-size:18px;font-weight:700;margin-bottom:20px}
+.modal-field{margin-bottom:16px}
+.modal-field label{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;font-weight:600}
+.modal-field input,.modal-field select,.modal-field textarea{width:100%;border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:12px 16px;font-size:15px;color:var(--text);background:var(--bg);outline:none;font-family:'Noto Sans TC',sans-serif}
+.modal-field input:focus,.modal-field select:focus{border-color:var(--accent)}
+.modal-actions{display:flex;gap:10px;margin-top:8px}
+.btn-cancel{flex:1;padding:14px;border-radius:var(--radius-sm);border:1.5px solid var(--border);background:none;font-size:15px;font-weight:600;cursor:pointer;color:var(--text2)}
+.btn-save{flex:2;padding:14px;border-radius:var(--radius-sm);border:none;background:var(--accent);color:#fff;font-size:15px;font-weight:700;cursor:pointer}
+.btn-save:disabled{opacity:.6}
+
+/* ── toast ── */
+.toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:var(--text);color:#fff;padding:10px 20px;border-radius:100px;font-size:13px;font-weight:600;opacity:0;transition:opacity .3s;pointer-events:none;z-index:300;white-space:nowrap}
+.toast.show{opacity:1}
+
+/* ── debug panel ── */
+.debug-panel{margin:0 20px 20px;background:#1a1714;border-radius:var(--radius-sm);padding:16px;font-family:'JetBrains Mono',monospace;font-size:12px;color:#7aff7a;display:none}
+.debug-panel.show{display:block}
+.debug-line{opacity:.7;margin-bottom:4px;word-break:break-all}
+.debug-line.err{color:#ff7a7a}
+.debug-line.ok{color:#7aff7a}
+
+::-webkit-scrollbar{width:0}
+</style>
+</head>
+<body>
+
+<!-- ══ SYNC BAR ═══════════════════════════════════════════════ -->
+<div class="sync-bar">
+  <div class="sync-pill" id="sync-pill">
+    <div class="sync-spinner" id="sync-spinner" style="display:none"></div>
+    <span id="sync-text"></span>
+  </div>
+</div>
+
+<!-- ══ HOME ══════════════════════════════════════════════════ -->
+<div id="screen-home" class="screen active">
+  <div class="page-header"><small>2026 APR 18–20</small><h1>東京快閃 ✈️</h1></div>
+  <div class="hero-card">
+    <div class="trip-label">TRIP COUNTDOWN</div>
+    <div class="trip-days" id="countdown-days">—</div>
+    <div class="trip-sub" id="countdown-label">距離出發</div>
+    <div class="date-range">4/18 桃機出發 → 4/20 成田回台</div>
+    <div class="countdown-pill"><span class="dot"></span><span id="countdown-detail">計算中...</span></div>
+  </div>
+  <div style="height:8px"></div>
+  <div class="info-grid">
+    <div class="info-card weather"><div class="ic-label">東京天氣</div><div class="ic-value">🌸</div><div class="ic-sub">春季 14–20°C</div></div>
+    <div class="info-card hotel"><div class="ic-label">住宿</div><div class="ic-value">Dormy Inn Ueno</div><div class="ic-sub">上野站 · 含溫泉</div></div>
+  </div>
+  <div class="live-expense-card" onclick="switchTab('expense')">
+    <div class="lec-left">
+      <div class="lec-label">目前總花費</div>
+      <div class="lec-value" id="dashboard-total">NT$—</div>
+      <div class="lec-sub" id="dashboard-count">讀取中...</div>
+    </div>
+    <div style="font-size:20px;color:var(--text3)">→</div>
+  </div>
+  <div class="next-stop">
+    <div class="ns-label">⚡ 下一站</div>
+    <div class="ns-place">築地市場</div>
+    <div class="ns-time">Day 1 · 10:30 · 築地站</div>
+    <a class="ns-maps" href="https://maps.google.com/?q=築地場外市場" target="_blank">📍 Google Maps 導航</a>
+  </div>
+  <div class="section">
+    <div class="section-title">快速導航</div>
+    <div class="quick-actions">
+      <button class="qa-btn" onclick="switchTab('itinerary')"><span class="qa-icon">🗓️</span><span class="qa-label">完整行程</span></button>
+      <button class="qa-btn" onclick="switchTab('expense')"><span class="qa-icon">💴</span><span class="qa-label">共編記帳</span></button>
+      <button class="qa-btn" onclick="switchTab('toolbox')"><span class="qa-icon">🧰</span><span class="qa-label">工具箱</span></button>
+      <button class="qa-btn" onclick="switchTab('checklist')"><span class="qa-icon">✅</span><span class="qa-label">出發確認</span></button>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title">航班資訊</div>
+    <div class="flight-strip">
+      <div class="fs-label">FLIGHTS</div>
+      <div class="flight-row"><span class="f-num">MM620</span><span class="f-route">桃園 T1 → 成田 T1</span><span class="f-time">02:00→06:30</span></div>
+      <div class="flight-row"><span class="f-num">IT201</span><span class="f-route">成田 T2 → 桃園 T1</span><span class="f-time">13:30→16:25</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ITINERARY ══════════════════════════════════════════════ -->
+<div id="screen-itinerary" class="screen">
+  <div class="page-header"><small>DETAILED SCHEDULE</small><h1>三天行程 📍</h1></div>
+  <div class="day-tabs">
+    <button class="day-tab active" onclick="switchDay(1,this)">Day 1 · 4/18 六</button>
+    <button class="day-tab" onclick="switchDay(2,this)">Day 2 · 4/19 日</button>
+    <button class="day-tab" onclick="switchDay(3,this)">Day 3 · 4/20 一</button>
+  </div>
+  <div id="day-1" class="timeline">
+    <div class="tl-item"><div class="tl-left"><div class="tl-time">23:30</div><div class="tl-dot-wrap transport"><span class="tl-dot">🚌</span></div><div class="tl-line"></div></div><div class="tl-content"><div class="tc-place">台灣 · 前日出發</div><div class="tc-title">機場巴士 / 機捷前往桃機</div><div class="tc-note">1962 板站 22:00 / 機捷北車 22:30</div><a class="tc-maps-btn" href="https://maps.google.com/?q=桃園機場第一航廈" target="_blank">📍 地圖</a></div></div>
+    <div class="tl-item"><div class="tl-left"><div class="tl-time">02:00</div><div class="tl-dot-wrap transport"><span class="tl-dot">✈️</span></div><div class="tl-line"></div></div><div class="tl-content"><div class="tc-place">桃機 T1</div><div class="tc-title">樂桃 MM620 起飛</div><div class="tc-note">抵達成田 T1 約 06:30（日本時間）</div></div></div>
+    <div class="tl-item"><div class="tl-left"><div class="tl-time">06:30</div><div class="tl-dot-wrap transport"><span class="tl-dot">🛬</span></div><div class="tl-line"></div></div><div class="tl-content"><div class="tc-place">成田機場 T1</div><div class="tc-title">入境 + Visit Japan 申請</div><div class="tc-note">完成入境審查，記得開 eSIM 網卡</div><a class="tc-maps-btn" href="https://maps.google.com/?q=成田國際機場第一航廈" target="_blank">📍 地圖</a></div></div>
+    <div class="tl-item"><div class="tl-left"><div class="tl-time">08:29</div><div class="tl-dot-wrap transport"><span class="tl-dot">🚆</span></div><div class="tl-line"></div></div><div class="tl-content"><div class="tc-place">Skyliner</div><div class="tc-title">成田 T1 → 京成上野</div><div class="tc-note">7:30→8:21 / 8:29→9:19 可開咖啡用網卡</div><div class="tc-budget">¥2,520/人</div></div></div>
+    <div class="tl-item"><div class="tl-left"><div class="tl-time">09:19</div><div class="tl-dot-wrap hotel"><span class="tl-dot">🏨</span></div><div class="tl-line"></div></div><div class="tl-content"><div class="tc-place">上野站</div><div class="tc-title">Dormy Inn Ueno 放行李</div><div class="tc-note">Check-in 15:00，先寄放行李再出發</div><a class="tc-maps-btn" href="https://maps.google.com/?q=Dormy+Inn+Premium+Ueno" target="_blank">📍 地圖</a></div></div>
+    <div class="tl-item"><div class="tl-left"><div class="tl-time">10:30</div><div class="tl-dot-wrap food"><span class="tl-dot">🍣</span></div><div class="tl-line"></div></div><div class="tl-content"><div class="tc-place">築地站</div><div class="tc-title">築地市場吃早餐</div><div class="tc-note">新鮮海鮮、玉子燒、咖啡</div><a class="tc-maps-btn" href="https://maps.google.com/?q=築地場外市場" target="_blank">📍 地圖</a></div></div>
+    <div class="tl-item"><div class="tl-left"><div class="tl-time">12:30</div><div class="tl-dot-wrap food"><span class="tl-dot">🍜</span></div><div class="tl-line"></div></div><div class="tl-content"><div class="tc-place">後樂園站</div><div class="tc-title">MENSHO TOKYO 午餐</div><div class="tc-note">羊肉拉麵，預算約 ¥3,000/人</div><div class="tc-budget">¥3,000/人</div><a class="tc-maps-btn" href="https://maps.google.com/?q=MENSHO+TOKYO" target="_blank">📍 地圖</a></div></div>
+    <div class="tl-item"><div class="tl-left"><div class="tl-time">13:30</div><div class="tl-dot-wrap concert"><span class="tl-dot">🎵</span></div><div class="tl-line"></div></div><div class="tl-content"><div class="tc-place">東京巨蛋</div><div class="tc-title">BTS 演唱會 入場</div><div class="tc-note">15:00 開演，記得帶預約確認信</div><a class="tc-maps-btn" href="https://maps.google.com/?q=東京ドーム" target="_blank">📍 地圖</a></div></div>
+    <div class="tl-item"><div class="tl-left"><div class="tl-time">18:30</div><div class="tl-dot-wrap shopping"><span class="tl-dot">🛍️</span></div><div class="tl-line"></div></div><div class="tl-content"><div class="tc-place">上野御徒町</div><div class="tc-title">阿美橫町逛街</div><div class="tc-note">SPORTS ZYUEN Benex Shop 20:00 關門</div><a class="tc-maps-btn" href="https://maps.google.com/?q=アメ横丁" target="_blank">📍 地圖</a></div></div>
+    <div class="tl-item"><div class="tl-left"><div class="tl-time">19:30</div><div class="tl-dot-wrap food"><span class="tl-dot">🥩</span></div><div class="tl-line"></div></div><div class="tl-content"><div class="tc-place">房家燒肉</div><div class="tc-title">Yakiniku Bouya 晚餐</div><div class="tc-note">必點拼盤＋冷麵，預算 ¥10,000/桌</div><div class="tc-budget">¥10,000/桌</div><a class="tc-maps-btn" href="https://maps.google.com/?q=焼肉房家+上野6丁目" target="_blank">📍 地圖</a></div></div>
+    <div class="tl-item"><div class="tl-left"><div class="tl-time">21:30</div><div class="tl-dot-wrap hotel"><span class="tl-dot">♨️</span></div><div class="tl-line"></div></div><div class="tl-content"><div class="tc-place">Dormy Inn</div><div class="tc-title">回飯店泡溫泉</div><div class="tc-note">溫泉 15:00～隔日早上 10:00</div><a class="tc-maps-btn" href="https://maps.google.com/?q=Dormy+Inn+Premium+Ueno" target="_blank">📍 地圖</a></div></div>
+  </div>
+  <div id="day-2" class="timeline" style="display:none">
+    <div class="tl-item"><div class="tl-left"><div class="tl-time">07:30</div><div class="tl-dot-wrap food"><span class="tl-dot">☕</span></div><div class="tl-line"></div></div><div class="tl-content"><div class="tc-place">淺草站</div><div class="tc-title">Suke6 Diner 早餐</div><div class="tc-note">美式早午餐，淺草人氣小店</div><a class="tc-maps-btn" href="https://maps.google.com/?q=Suke6+Diner+浅草" target="_blank">📍 地圖</a></div></div>
+    <div class="tl-item"><div class="tl-left"><div class="tl-time">09:30</div><div class="tl-dot-wrap sightseeing"><span class="tl-dot">⛩️</span></div><div class="tl-line"></div></div><div class="tl-content"><div class="tc-place">淺草</div><div class="tc-title">淺草寺 + 仲見世通</div><div class="tc-note">先逛景點，再回雷門拍照，10:30 離開</div><a class="tc-maps-btn" href="https://maps.google.com/?q=浅草寺" target="_blank">📍 地圖</a></div></div>
+    <div class="tl-item"><div class="tl-left"><div class="tl-time">11:30</div><div class="tl-dot-wrap sightseeing"><span class="tl-dot">⛩️</span></div><div class="tl-line"></div></div><div class="tl-content"><div class="tc-place">明治神宮前</div><div class="tc-title">明治神宮參拜</div><div class="tc-note">森林步道散步，感受靜謐氛圍</div><a class="tc-maps-btn" href="https://maps.google.com/?q=明治神宮" target="_blank">📍 地圖</a></div></div>
+    <div class="tl-item"><div class="tl-left"><div class="tl-time">13:00</div><div class="tl-dot-wrap food"><span class="tl-dot">🥩</span></div><div class="tl-line"></div></div><div class="tl-content"><div class="tc-place">表參道</div><div class="tc-title">炸牛排 or 嘉漢堡排</div><div class="tc-note">依當天排隊狀況決定</div><a class="tc-maps-btn" href="https://maps.google.com/?q=原宿" target="_blank">📍 地圖</a></div></div>
+    <div class="tl-item"><div class="tl-left"><div class="tl-time">15:00</div><div class="tl-dot-wrap shopping"><span class="tl-dot">👟</span></div><div class="tl-line"></div></div><div class="tl-content"><div class="tc-place">表參道 Cat Street</div><div class="tc-title">ON 跑鞋專賣店 / 渋谷 Sky</div><div class="tc-note">Cloudtilt Moon 登山鞋，16:30 離開</div><a class="tc-maps-btn" href="https://maps.google.com/?q=On+Running+Omotesando" target="_blank">📍 地圖</a></div></div>
+    <div class="tl-item"><div class="tl-left"><div class="tl-time">17:00</div><div class="tl-dot-wrap sightseeing"><span class="tl-dot">🌆</span></div><div class="tl-line"></div></div><div class="tl-content"><div class="tc-place">六本木 Hills</div><div class="tc-title">Tokyo City View 日落夜景</div><div class="tc-note">17:00 看日落轉夜景，絕美視角</div><a class="tc-maps-btn" href="https://maps.google.com/?q=六本木ヒルズ展望台" target="_blank">📍 地圖</a></div></div>
+    <div class="tl-item"><div class="tl-left"><div class="tl-time">19:30</div><div class="tl-dot-wrap food"><span class="tl-dot">🍱</span></div><div class="tl-line"></div></div><div class="tl-content"><div class="tc-place">上野</div><div class="tc-title">炸牛排晚餐</div><div class="tc-note">Day 1 沒吃到的話今天補！</div><a class="tc-maps-btn" href="https://maps.google.com/?q=上野+炸牛排" target="_blank">📍 地圖</a></div></div>
+    <div class="tl-item"><div class="tl-left"><div class="tl-time">22:00</div><div class="tl-dot-wrap shopping"><span class="tl-dot">🛒</span></div><div class="tl-line"></div></div><div class="tl-content"><div class="tc-place">御徒町</div><div class="tc-title">阿美橫町 Don Quijote</div><div class="tc-note">藥妝採購，24hr 開</div><a class="tc-maps-btn" href="https://maps.google.com/?q=ドン・キホーテ+御徒町" target="_blank">📍 地圖</a></div></div>
+  </div>
+  <div id="day-3" class="timeline" style="display:none">
+    <div class="tl-item"><div class="tl-left"><div class="tl-time">07:00</div><div class="tl-dot-wrap food"><span class="tl-dot">🍳</span></div><div class="tl-line"></div></div><div class="tl-content"><div class="tc-place">Dormy Inn</div><div class="tc-title">加購飯店早餐</div><div class="tc-note">早餐供應 06:30–09:30</div></div></div>
+    <div class="tl-item"><div class="tl-left"><div class="tl-time">09:00</div><div class="tl-dot-wrap transport"><span class="tl-dot">🚆</span></div><div class="tl-line"></div></div><div class="tl-content"><div class="tc-place">京成上野</div><div class="tc-title">Skyliner 回成田機場</div><div class="tc-note">09:00→09:42 / 09:40→10:21</div><div class="tc-budget">¥2,520/人</div><a class="tc-maps-btn" href="https://maps.google.com/?q=京成上野駅" target="_blank">📍 地圖</a></div></div>
+    <div class="tl-item"><div class="tl-left"><div class="tl-time">10:30</div><div class="tl-dot-wrap shopping"><span class="tl-dot">🛍️</span></div><div class="tl-line"></div></div><div class="tl-content"><div class="tc-place">成田機場 T2</div><div class="tc-title">逛機場免稅商店</div><div class="tc-note">最後衝貨！零食、伴手禮、藥妝</div><a class="tc-maps-btn" href="https://maps.google.com/?q=成田空港第二ターミナル" target="_blank">📍 地圖</a></div></div>
+    <div class="tl-item"><div class="tl-left"><div class="tl-time">13:30</div><div class="tl-dot-wrap transport"><span class="tl-dot">✈️</span></div><div class="tl-line"></div></div><div class="tl-content"><div class="tc-place">成田機場 T2</div><div class="tc-title">虎航 IT201 返台</div><div class="tc-note">抵達桃園 T1 16:25，搭機捷/巴士回台</div></div></div>
+  </div>
+</div>
+
+<!-- ══ EXPENSE ════════════════════════════════════════════════ -->
+<div id="screen-expense" class="screen">
+  <div class="page-header"><small>SHARED EXPENSE</small><h1>共編記帳 💴</h1></div>
+
+  <!-- 總覽 -->
+  <div class="expense-summary">
+    <div class="es-label">TOTAL SPENT (TWD)</div>
+    <div class="es-total" id="total-twd">NT$—</div>
+    <div class="es-sub" id="total-jpy"></div>
+    <div class="es-split">
+      <div class="es-person"><div class="ep-name">寶 先付</div><div class="ep-amount" id="bao-paid">—</div></div>
+      <div class="es-person"><div class="ep-name">辛 先付</div><div class="ep-amount" id="xin-paid">—</div></div>
+    </div>
+  </div>
+
+  <!-- 即時拆帳結算 -->
+  <div class="settlement-card">
+    <div class="sc-header">⚖️ 即時結算</div>
+    <div class="sc-body" id="settlement-body">
+      <div style="font-size:13px;color:var(--text3);text-align:center;padding:8px 0">新增支出後自動計算</div>
+    </div>
+  </div>
+
+  <!-- 換算 -->
+  <div class="currency-card">
+    <h3>💱 日幣換算</h3>
+    <div class="currency-inputs">
+      <div style="flex:1"><input class="ci-field" type="number" id="jpy-input" placeholder="1000" oninput="convertCurrency('jpy')"><div class="ci-label">日圓 ¥</div></div>
+      <div class="ci-arrow">⇄</div>
+      <div style="flex:1"><input class="ci-field" type="number" id="twd-input" placeholder="210" oninput="convertCurrency('twd')"><div class="ci-label">台幣 NT$</div></div>
+    </div>
+    <div class="rate-note">匯率：1 JPY ≈ 0.21 TWD（請依當日牌告為準）</div>
+  </div>
+
+  <button class="primary-btn" id="add-btn" onclick="openExpenseModal()">＋ 新增支出</button>
+  <div class="expense-list" id="expense-list"></div>
+</div>
+
+<!-- ══ TOOLBOX ════════════════════════════════════════════════ -->
+<div id="screen-toolbox" class="screen">
+  <div class="page-header"><small>TRAVEL TOOLS</small><h1>旅遊工具箱 🧰</h1></div>
+  <div id="toolbox-home">
+    <div class="section">
+      <div class="section-title">工具選單</div>
+      <div class="toolbox-grid">
+        <div class="tool-card" onclick="showTool('qr')"><div class="tc-emoji">📱</div><div class="tc-name">Visit Japan</div><div class="tc-desc">上傳 QR Code 隨時查看</div></div>
+        <div class="tool-card" onclick="showTool('phrases')"><div class="tc-emoji">🗣️</div><div class="tc-name">常用日語</div><div class="tc-desc">旅遊必備對話速查</div></div>
+        <div class="tool-card" onclick="switchTab('checklist')"><div class="tc-emoji">✅</div><div class="tc-name">出發確認</div><div class="tc-desc">行前準備清單</div></div>
+        <div class="tool-card" onclick="openEmergency()"><div class="tc-emoji">🆘</div><div class="tc-name">緊急資訊</div><div class="tc-desc">電話、使館、保險</div></div>
+      </div>
+    </div>
+    <!-- Debug panel -->
+    <div class="section">
+      <div class="section-title">API 狀態</div>
+      <button onclick="runDebug()" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;font-size:13px;font-weight:600;cursor:pointer;color:var(--text2)">🔍 測試 GAS 連線</button>
+      <div class="debug-panel" id="debug-panel"></div>
+    </div>
+  </div>
+  <div id="tool-qr" class="tool-panel" style="padding:0 0 20px">
+    <div style="display:flex;align-items:center;gap:12px;padding:0 20px 16px">
+      <button onclick="hideTool()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text2)">←</button>
+      <h2 style="font-size:18px;font-weight:700">Visit Japan QR Code</h2>
+    </div>
+    <div id="qr-upload-area" class="qr-upload-area" onclick="document.getElementById('qr-file').click()">
+      <div class="qu-icon">📲</div><div class="qu-text">點擊上傳 QR Code 截圖</div><div class="qu-sub">支援 JPG / PNG</div>
+    </div>
+    <input type="file" id="qr-file" accept="image/*" style="display:none" onchange="handleQR(event)">
+    <div id="qr-preview" class="qr-preview" style="display:none">
+      <img id="qr-img" src="" alt="Visit Japan QR">
+      <div style="margin-top:12px;font-size:13px;color:var(--text2)">長按圖片可儲存到相機膠卷</div>
+      <button onclick="document.getElementById('qr-file').click()" style="margin-top:12px;background:none;border:1.5px solid var(--border);border-radius:100px;padding:8px 20px;font-size:13px;cursor:pointer;color:var(--text2)">重新上傳</button>
+    </div>
+  </div>
+  <div id="tool-phrases" class="tool-panel" style="padding:0 0 20px">
+    <div style="display:flex;align-items:center;gap:12px;padding:0 20px 16px">
+      <button onclick="hideTool()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text2)">←</button>
+      <h2 style="font-size:18px;font-weight:700">常用日語對話</h2>
+    </div>
+    <div style="padding:0 20px 12px;font-size:12px;color:var(--text3)">👆 點擊任意句子即可複製</div>
+    <div class="phrases-list">
+      <div class="phrase-item" onclick="copyPhrase('すみません',this)"><div class="pi-jp">すみません</div><div class="pi-rom">Sumimasen</div><div class="pi-tw">不好意思 / 借過</div></div>
+      <div class="phrase-item" onclick="copyPhrase('これをください',this)"><div class="pi-jp">これをください</div><div class="pi-rom">Kore wo kudasai</div><div class="pi-tw">我要這個</div></div>
+      <div class="phrase-item" onclick="copyPhrase('いくらですか？',this)"><div class="pi-jp">いくらですか？</div><div class="pi-rom">Ikura desu ka?</div><div class="pi-tw">多少錢？</div></div>
+      <div class="phrase-item" onclick="copyPhrase('カードで払えますか？',this)"><div class="pi-jp">カードで払えますか？</div><div class="pi-rom">Ka-do de haraemasu ka?</div><div class="pi-tw">可以刷卡嗎？</div></div>
+      <div class="phrase-item" onclick="copyPhrase('ここに行きたいです',this)"><div class="pi-jp">ここに行きたいです</div><div class="pi-rom">Koko ni ikitai desu</div><div class="pi-tw">我想去這裡（指地圖）</div></div>
+      <div class="phrase-item" onclick="copyPhrase('トイレはどこですか？',this)"><div class="pi-jp">トイレはどこですか？</div><div class="pi-rom">Toire wa doko desu ka?</div><div class="pi-tw">廁所在哪裡？</div></div>
+      <div class="phrase-item" onclick="copyPhrase('お会計をお願いします',this)"><div class="pi-jp">お会計をお願いします</div><div class="pi-rom">Okaikei wo onegai shimasu</div><div class="pi-tw">麻煩買單</div></div>
+      <div class="phrase-item" onclick="copyPhrase('美味しかったです！',this)"><div class="pi-jp">美味しかったです！</div><div class="pi-rom">Oishikatta desu!</div><div class="pi-tw">好好吃！</div></div>
+      <div class="phrase-item" onclick="copyPhrase('助けてください！',this)"><div class="pi-jp">助けてください！</div><div class="pi-rom">Tasukete kudasai!</div><div class="pi-tw">請幫幫我！（緊急）</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CHECKLIST ═══════════════════════════════════════════════ -->
+<div id="screen-checklist" class="screen">
+  <div class="page-header"><small>PRE-DEPARTURE</small><h1>出發確認 ✅</h1></div>
+  <div style="padding:0 20px 12px">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;font-size:13px;line-height:1.6;color:var(--text2)">
+      📌 點「寶」「辛」勾選個人完成狀態 · 右側可編輯 / 刪除項目
+    </div>
+  </div>
+  <button class="primary-btn" onclick="addCheckItem()">＋ 新增確認項目</button>
+  <div class="checklist" id="checklist-items"></div>
+</div>
+
+<!-- ══ NAV BAR ════════════════════════════════════════════════ -->
+<nav class="nav-bar">
+  <button class="nav-item active" id="nav-home" onclick="switchTab('home')"><span class="nav-icon">🏠</span><span class="nav-label">首頁</span></button>
+  <button class="nav-item" id="nav-itinerary" onclick="switchTab('itinerary')"><span class="nav-icon">🗓️</span><span class="nav-label">行程</span></button>
+  <button class="nav-item" id="nav-expense" onclick="switchTab('expense')"><span class="nav-icon">💴</span><span class="nav-label">記帳</span></button>
+  <button class="nav-item" id="nav-toolbox" onclick="switchTab('toolbox')"><span class="nav-icon">🧰</span><span class="nav-label">工具箱</span></button>
+  <button class="nav-item" id="nav-checklist" onclick="switchTab('checklist')"><span class="nav-icon">✅</span><span class="nav-label">確認</span></button>
+</nav>
+
+<!-- ══ EXPENSE MODAL ══════════════════════════════════════════ -->
+<div class="modal-overlay" id="expense-modal">
+  <div class="modal">
+    <h3 id="expense-modal-title">新增支出</h3>
+    <input type="hidden" id="modal-edit-id">
+    <div class="modal-field"><label>項目名稱</label><input type="text" id="modal-name" placeholder="例：築地早餐"></div>
+    <div class="modal-field"><label>金額</label><input type="number" id="modal-amount" placeholder="0"></div>
+    <div class="modal-field"><label>幣別</label>
+      <select id="modal-currency"><option value="TWD">台幣 TWD</option><option value="JPY">日圓 JPY</option></select>
+    </div>
+    <div class="modal-field"><label>誰先付</label>
+      <select id="modal-payer"><option value="寶">寶</option><option value="辛">辛</option></select>
+    </div>
+    <div class="modal-field"><label>分攤對象</label>
+      <select id="modal-split"><option value="辛">辛（對半分）</option><option value="寶">寶（對半分）</option><option value="solo">自付（不分攤）</option></select>
+    </div>
+    <div class="modal-field"><label>分類</label>
+      <select id="modal-category"><option value="🍜">🍜 餐食</option><option value="🚆">🚆 交通</option><option value="🛍️">🛍️ 購物</option><option value="🎵">🎵 娛樂</option><option value="🏨">🏨 住宿</option><option value="✈️">✈️ 機票</option><option value="💊">💊 藥妝</option><option value="🎫">🎫 門票</option></select>
+    </div>
+    <div class="modal-field"><label>備注（選填）</label><input type="text" id="modal-note" placeholder="例：必點拼盤＋冷麵"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeExpenseModal()">取消</button>
+      <button class="btn-save" id="modal-save-btn" onclick="saveExpense()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ EMERGENCY MODAL ════════════════════════════════════════ -->
+<div class="modal-overlay" id="emergency-modal">
+  <div class="modal">
+    <h3>🆘 緊急聯絡資訊</h3>
+    <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:16px;margin-bottom:16px;font-size:13px;line-height:2.2">
+      <div>🚨 <strong>日本警察</strong>：<a href="tel:110">110</a></div>
+      <div>🔥 <strong>救護車 / 消防</strong>：<a href="tel:119">119</a></div>
+      <div>🏥 <strong>醫療諮詢</strong>：<a href="tel:#7119">#7119</a></div>
+      <div>🇹🇼 <strong>台灣在日協會</strong>：<a href="tel:0333280-7811">03-3280-7811</a></div>
+      <div>✈️ <strong>成田機場</strong>：<a href="tel:0476348000">0476-34-8000</a></div>
+    </div>
+    <button class="btn-save" onclick="closeEmergency()" style="width:100%">關閉</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ══════════════════════════════════════════════════════════
+  JAVASCRIPT
+═══════════════════════════════════════════════════════════ -->
+<script>
+// ╔══════════════════════════════════════════════════════════╗
+//  ★ 部署後將 GAS Web App URL 貼在此處
+//    格式：https://script.google.com/macros/s/XXXXXX/exec
+// ╚══════════════════════════════════════════════════════════╝
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwPJq3dDwdwJhfV_tRG59QOzYMHennXpKtamg0wRjFGBAAxOR8N2C6gMZlO-4bFWZ2RJQ/exec';
+
+const JPY_RATE   = 0.21;
+const MEMBERS    = ['寶', '辛'];
+const LS_EXPENSE = 'tokyo_expenses_v3';
+const LS_CHECK   = 'tokyo_checklist_v3';
+const LS_OFFLINE = 'tokyo_offline_v3';
+
+let expenses  = [];
+let checklist = [];
+let isOnline  = navigator.onLine;
+
+// ══════════════════════════════════════════════════════════
+//  SYNC STATUS UI
+// ══════════════════════════════════════════════════════════
+let syncTimer = null;
+function showSync(type, msg, ms = 2800) {
+  const pill    = document.getElementById('sync-pill');
+  const text    = document.getElementById('sync-text');
+  const spinner = document.getElementById('sync-spinner');
+  clearTimeout(syncTimer);
+  pill.className = `sync-pill show ${type}`;
+  text.textContent = msg;
+  spinner.style.display = type === 'syncing' ? 'block' : 'none';
+  if (ms > 0) syncTimer = setTimeout(() => pill.classList.remove('show'), ms);
+}
+
+// ══════════════════════════════════════════════════════════
+//  GAS API  ─  核心修復點
+//  Content-Type 必須是 text/plain;charset=utf-8
+//  不能用 application/json（會觸發 CORS preflight）
+// ══════════════════════════════════════════════════════════
+const GAS_READY = GAS_URL !== 'YOUR_GAS_WEB_APP_URL_HERE';
+
+async function gasGet(action) {
+  const res = await fetch(`${GAS_URL}?action=${action}`, {
+    method: 'GET',
+    cache: 'no-store'
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+async function gasPost(payload) {
+  // ⚠️ 關鍵修復：Content-Type 必須是 text/plain，不能用 application/json
+  const res = await fetch(GAS_URL, {
+    method:  'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body:    JSON.stringify(payload),
+    // GAS 會 302 redirect，需要跟隨
+    redirect: 'follow'
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'GAS returned ok:false');
+  return data;
+}
+
+// ══════════════════════════════════════════════════════════
+//  OFFLINE QUEUE
+// ══════════════════════════════════════════════════════════
+function enqueueOffline(payload) {
+  const q = JSON.parse(localStorage.getItem(LS_OFFLINE) || '[]');
+  q.push({ ...payload, timestamp: new Date().toISOString() });
+  localStorage.setItem(LS_OFFLINE, JSON.stringify(q));
+  debugLog(`📭 離線儲存：${payload.action}`, 'warn');
+}
+
+async function flushOfflineQueue() {
+  const q = JSON.parse(localStorage.getItem(LS_OFFLINE) || '[]');
+  if (!q.length || !GAS_READY) return;
+  showSync('syncing', `補傳 ${q.length} 筆離線資料...`, 0);
+  try {
+    const res = await gasPost({ action: 'sync_offline', items: q });
+    localStorage.removeItem(LS_OFFLINE);
+    showSync('success', `✓ 已補傳 ${res.synced} 筆`);
+    debugLog(`✅ 補傳成功 ${res.synced} 筆`);
+  } catch (e) {
+    showSync('error', '補傳失敗', 3000);
+    debugLog('❌ 補傳失敗: ' + e.message, 'err');
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+//  EXPENSES — LOAD
+// ══════════════════════════════════════════════════════════
+async function loadExpenses() {
+  const cached = localStorage.getItem(LS_EXPENSE);
+  if (cached) { expenses = JSON.parse(cached); renderExpenses(); }
+
+  if (!isOnline || !GAS_READY) return;
+  showSync('syncing', '讀取記帳...', 0);
+  try {
+    const res = await gasGet('expenses');
+    expenses = res.data || [];
+    localStorage.setItem(LS_EXPENSE, JSON.stringify(expenses));
+    renderExpenses();
+    showSync('success', '✓ 記帳已同步');
+  } catch (e) {
+    showSync('error', '讀取失敗，顯示本機資料', 2500);
+    debugLog('loadExpenses error: ' + e.message, 'err');
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+//  EXPENSES — SAVE (ADD / EDIT)
+//  樂觀更新：先更新本地，再非同步送出
+// ══════════════════════════════════════════════════════════
+async function saveExpense() {
+  const editId   = document.getElementById('modal-edit-id').value;
+  const name     = document.getElementById('modal-name').value.trim();
+  const amount   = parseFloat(document.getElementById('modal-amount').value);
+  const currency = document.getElementById('modal-currency').value;
+  const payer    = document.getElementById('modal-payer').value;
+  const splitWith= document.getElementById('modal-split').value;
+  const icon     = document.getElementById('modal-category').value;
+  const note     = document.getElementById('modal-note').value.trim();
+
+  if (!name || !amount || amount <= 0) { showToast('⚠️ 請填寫名稱和有效金額'); return; }
+
+  const btn = document.getElementById('modal-save-btn');
+  btn.disabled = true;
+
+  if (editId) {
+    // ── 編輯 ──
+    const idx = expenses.findIndex(e => String(e.id) === String(editId));
+    if (idx > -1) {
+      expenses[idx] = { ...expenses[idx], name, amount, currency, payer, splitWith, icon, note };
+      localStorage.setItem(LS_EXPENSE, JSON.stringify(expenses));
+      renderExpenses();
+      closeExpenseModal();
+
+      if (!isOnline || !GAS_READY) { enqueueOffline({ action:'edit_expense', id:editId, name, amount, currency, payer, splitWith, icon, note }); btn.disabled=false; return; }
+      showSync('syncing', '同步更新...', 0);
+      try {
+        await gasPost({ action:'edit_expense', id:editId, name, amount, currency, payer, splitWith, icon, note });
+        showSync('success', '✓ 已更新');
+        showToast('✅ 已更新並同步');
+      } catch (e) {
+        enqueueOffline({ action:'edit_expense', id:editId, name, amount, currency, payer, splitWith, icon, note });
+        showSync('error', '同步失敗，已存入佇列', 3000);
+      }
+    }
+  } else {
+    // ── 新增 ──
+    const tempId = 'tmp_' + Date.now();
+    const item   = { id: tempId, name, amount, currency, payer, splitWith, icon, note, settled: false, pendingSync: true };
+    expenses.push(item);
+    localStorage.setItem(LS_EXPENSE, JSON.stringify(expenses));
+    renderExpenses();
+    closeExpenseModal();
+
+    if (!isOnline || !GAS_READY) { enqueueOffline({ action:'add_expense', ...item }); btn.disabled=false; showToast('📵 離線儲存，稍後補傳'); return; }
+    showSync('syncing', '同步中...', 0);
+    try {
+      const res = await gasPost({ action:'add_expense', name, amount, currency, payer, splitWith, icon, note });
+      const idx  = expenses.findIndex(e => e.id === tempId);
+      if (idx > -1) { expenses[idx].id = res.id; expenses[idx].pendingSync = false; }
+      localStorage.setItem(LS_EXPENSE, JSON.stringify(expenses));
+      renderExpenses();
+      showSync('success', '✓ 已同步到 Google Sheets');
+      showToast('✅ 已新增並同步！');
+      debugLog(`✅ add_expense OK id=${res.id}`);
+    } catch (e) {
+      enqueueOffline({ action:'add_expense', id: tempId, name, amount, currency, payer, splitWith, icon, note });
+      showSync('error', '同步失敗，已存入佇列', 3000);
+      debugLog('add_expense error: ' + e.message, 'err');
+    }
+  }
+  btn.disabled = false;
+}
+
+// ── 刪除 ──────────────────────────────────────────────────
+async function deleteExpense(id) {
+  if (!confirm('確定刪除這筆支出？')) return;
+  expenses = expenses.filter(e => String(e.id) !== String(id));
+  localStorage.setItem(LS_EXPENSE, JSON.stringify(expenses));
+  renderExpenses();
+  showToast('🗑️ 已刪除');
+
+  if (!isOnline || !GAS_READY) { enqueueOffline({ action:'delete_expense', id }); return; }
+  try {
+    await gasPost({ action:'delete_expense', id });
+    showSync('success', '✓ 已同步刪除');
+  } catch (e) {
+    enqueueOffline({ action:'delete_expense', id });
+  }
+}
+
+// ── 切換結清 ──────────────────────────────────────────────
+async function toggleSettle(id) {
+  const item = expenses.find(e => String(e.id) === String(id));
+  if (!item) return;
+  item.settled = !item.settled;
+  localStorage.setItem(LS_EXPENSE, JSON.stringify(expenses));
+  renderExpenses();
+
+  if (!isOnline || !GAS_READY) { enqueueOffline({ action:'settle_expense', id }); return; }
+  try {
+    await gasPost({ action:'settle_expense', id });
+    showSync('success', item.settled ? '✓ 已結清' : '↩ 已取消結清');
+  } catch (e) { enqueueOffline({ action:'settle_expense', id }); }
+}
+
+// ── RENDER ────────────────────────────────────────────────
+function toTWD(e) {
+  return e.currency === 'JPY' ? Math.round(e.amount * JPY_RATE) : e.amount;
+}
+
+function renderExpenses() {
+  const list = document.getElementById('expense-list');
+  let baoP = 0, xinP = 0, grand = 0;
+
+  // 計算各人先付金額（僅 settled=false）
+  const unsettled = expenses.filter(e => !e.settled);
+  unsettled.forEach(e => {
+    const twd = toTWD(e);
+    grand += twd;
+    if (e.payer === '寶') baoP += twd;
+    else if (e.payer === '辛') xinP += twd;
+  });
+  const allGrand = expenses.reduce((s, e) => s + toTWD(e), 0);
+
+  // 更新頂部統計
+  document.getElementById('total-twd').textContent = `NT$${allGrand.toLocaleString()}`;
+  document.getElementById('bao-paid').textContent   = `NT$${expenses.filter(e=>e.payer==='寶').reduce((s,e)=>s+toTWD(e),0).toLocaleString()}`;
+  document.getElementById('xin-paid').textContent   = `NT$${expenses.filter(e=>e.payer==='辛').reduce((s,e)=>s+toTWD(e),0).toLocaleString()}`;
+
+  // Dashboard 同步
+  document.getElementById('dashboard-total').textContent = `NT$${allGrand.toLocaleString()}`;
+  document.getElementById('dashboard-count').textContent = `共 ${expenses.length} 筆支出`;
+
+  // ── 拆帳結算 ────────────────────────────────────────────
+  renderSettlement();
+
+  // ── 清單 HTML ───────────────────────────────────────────
+  if (!expenses.length) {
+    list.innerHTML = `<div style="text-align:center;padding:40px 20px;color:var(--text3);font-size:14px">還沒有支出紀錄<br>點上方「＋ 新增支出」開始記帳</div>`;
+    return;
+  }
+
+  list.innerHTML = expenses.map(e => {
+    const twd      = toTWD(e);
+    const isSolo   = e.splitWith === 'solo';
+    const each     = isSolo ? twd : Math.round(twd / 2);
+    const amtText  = e.currency === 'JPY' ? `¥${Number(e.amount).toLocaleString()} ≈ NT$${twd.toLocaleString()}` : `NT$${twd.toLocaleString()}`;
+    const splitTag = isSolo ? `${e.payer} 自付` : `${e.payer} 先付 · 各 NT$${each.toLocaleString()}`;
+    const badge    = e.pendingSync ? '<span class="offline-badge">未同步</span>' : '';
+    return `
+    <div class="expense-item${e.settled?' settled':''}${e.pendingSync?' pending-sync':''}" id="ei-${e.id}">
+      <div class="ei-icon">${e.icon||'💴'}</div>
+      <div class="ei-info">
+        <div class="ei-name">${e.name}${badge}</div>
+        <div class="ei-meta">${splitTag}</div>
+        ${e.note ? `<div class="ei-meta" style="opacity:.7">${e.note}</div>` : ''}
+        <div class="ei-tag">${amtText}</div>
+        <div class="ei-actions">
+          <button class="ei-act-btn ei-act-settle${e.settled?' done':''}" onclick="toggleSettle('${e.id}')">${e.settled?'✓ 已結清':'結清'}</button>
+          <button class="ei-act-btn ei-act-edit" onclick="editExpense('${e.id}')">編輯</button>
+          <button class="ei-act-btn ei-act-del"  onclick="deleteExpense('${e.id}')">刪除</button>
+        </div>
+      </div>
+      <div class="ei-right">
+        <div class="ei-total">NT$${twd.toLocaleString()}</div>
+        ${!isSolo ? `<div class="ei-each">各 ${each.toLocaleString()}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── 即時拆帳結算邏輯 ──────────────────────────────────────
+function renderSettlement() {
+  const body    = document.getElementById('settlement-body');
+  const active  = expenses.filter(e => !e.settled);
+  if (!active.length) {
+    body.innerHTML = `<div style="font-size:13px;color:var(--text3);text-align:center;padding:8px 0">目前無未結清支出 🎉</div>`;
+    return;
+  }
+
+  // 計算每人「應付總額的一半」
+  const totals = { '寶': 0, '辛': 0 };
+  const paid   = { '寶': 0, '辛': 0 };
+
+  active.forEach(e => {
+    const twd = toTWD(e);
+    if (e.splitWith !== 'solo') {
+      totals['寶'] += Math.round(twd / 2);
+      totals['辛'] += Math.round(twd / 2);
+    } else {
+      totals[e.payer] += twd;
+    }
+    if (paid[e.payer] !== undefined) paid[e.payer] += twd;
+  });
+
+  // diff = 已付 - 應付；正數表示多付（可收回），負數表示少付（需補）
+  const baoDiff = paid['寶'] - totals['寶'];
+  const xinDiff = paid['辛'] - totals['辛'];
+
+  let verdictHTML = '';
+  if (Math.abs(baoDiff) < 5) {
+    verdictHTML = `<div style="color:var(--green);font-weight:700">✓ 兩人目前平帳！</div>`;
+  } else if (baoDiff > 0) {
+    verdictHTML = `<div>辛 需付給 寶 <strong>NT$${Math.abs(baoDiff).toLocaleString()}</strong></div>`;
+  } else {
+    verdictHTML = `<div>寶 需付給 辛 <strong>NT$${Math.abs(xinDiff).toLocaleString()}</strong></div>`;
+  }
+
+  body.innerHTML = `
+    <div class="sc-row">
+      <span class="sc-person">寶</span>
+      <div>
+        <div style="font-size:11px;color:var(--text3)">先付 NT$${paid['寶'].toLocaleString()} · 應付 NT$${totals['寶'].toLocaleString()}</div>
+        <div class="sc-amount ${baoDiff>=0?'receives':'owes'}">${baoDiff>=0?'+':''}NT$${baoDiff.toLocaleString()}</div>
+      </div>
+    </div>
+    <div class="sc-row">
+      <span class="sc-person">辛</span>
+      <div>
+        <div style="font-size:11px;color:var(--text3)">先付 NT$${paid['辛'].toLocaleString()} · 應付 NT$${totals['辛'].toLocaleString()}</div>
+        <div class="sc-amount ${xinDiff>=0?'receives':'owes'}">${xinDiff>=0?'+':''}NT$${xinDiff.toLocaleString()}</div>
+      </div>
+    </div>
+    <div class="sc-verdict">${verdictHTML}</div>`;
+}
+
+// ── MODAL helpers ─────────────────────────────────────────
+function openExpenseModal(item) {
+  document.getElementById('modal-edit-id').value      = item ? item.id    : '';
+  document.getElementById('modal-name').value         = item ? item.name  : '';
+  document.getElementById('modal-amount').value       = item ? item.amount: '';
+  document.getElementById('modal-currency').value     = item ? item.currency : 'TWD';
+  document.getElementById('modal-payer').value        = item ? item.payer : '寶';
+  document.getElementById('modal-split').value        = item ? (item.splitWith||'辛') : '辛';
+  document.getElementById('modal-category').value     = item ? item.icon  : '🍜';
+  document.getElementById('modal-note').value         = item ? (item.note||'') : '';
+  document.getElementById('expense-modal-title').textContent = item ? '編輯支出' : '新增支出';
+  document.getElementById('expense-modal').classList.add('open');
+}
+function closeExpenseModal() { document.getElementById('expense-modal').classList.remove('open'); }
+function editExpense(id) {
+  const item = expenses.find(e => String(e.id) === String(id));
+  if (item) openExpenseModal(item);
+}
+
+// ══════════════════════════════════════════════════════════
+//  CHECKLIST — LOAD & RENDER
+// ══════════════════════════════════════════════════════════
+async function loadChecklist() {
+  const cached = localStorage.getItem(LS_CHECK);
+  checklist = cached ? JSON.parse(cached) : getDefaultChecklist();
+  renderChecklist();
+
+  if (!isOnline || !GAS_READY) return;
+  try {
+    const res = await gasGet('checklist');
+    if (res.ok && res.data && res.data.length) {
+      checklist = res.data;
+      localStorage.setItem(LS_CHECK, JSON.stringify(checklist));
+      renderChecklist();
+    }
+  } catch {}
+}
+
+function getDefaultChecklist() {
+  return [
+    { id:'c1', name:'買網卡 eSIM',        bao:true,  xin:true  },
+    { id:'c2', name:'旅平險',              bao:true,  xin:true  },
+    { id:'c3', name:'申請 Visit Japan Web', bao:false, xin:false },
+    { id:'c4', name:'帶護照',              bao:false, xin:false },
+    { id:'c5', name:'Skyliner 來回車票',   bao:false, xin:false },
+    { id:'c6', name:'六本木 Hills 門票',   bao:false, xin:false },
+    { id:'c7', name:'訂房家燒肉',          bao:true,  xin:true  },
+    { id:'c8', name:'役男出境申請',        bao:false, xin:false },
+  ];
+}
+
+function renderChecklist() {
+  const c = document.getElementById('checklist-items');
+  c.innerHTML = checklist.map(item => `
+    <div class="check-item${item.bao&&item.xin?' all-done':''}" id="ci-${item.id}">
+      <div class="check-box">${item.bao&&item.xin?'✓':''}</div>
+      <div class="ci-name">${item.name}</div>
+      <div class="ci-right">
+        <div class="ci-persons">
+          <div class="person-badge${item.bao?' done':''}" onclick="toggleCheck('${item.id}','bao',event)">寶</div>
+          <div class="person-badge${item.xin?' done':''}" onclick="toggleCheck('${item.id}','xin',event)">辛</div>
+        </div>
+        <div class="ci-edit-actions">
+          <button class="ci-edit-btn edit" onclick="startEditCheck('${item.id}')">✏️</button>
+          <button class="ci-edit-btn del"  onclick="deleteCheck('${item.id}')">🗑️</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+// ── 切換勾選 ──────────────────────────────────────────────
+async function toggleCheck(id, person, e) {
+  e.stopPropagation();
+  const item = checklist.find(x => String(x.id) === String(id));
+  if (!item) return;
+  item[person] = !item[person];
+  localStorage.setItem(LS_CHECK, JSON.stringify(checklist));
+  renderChecklist();
+  const all = checklist.filter(x => x.bao && x.xin).length;
+  if (all === checklist.length && checklist.length > 0) showToast('🎉 全部準備完成！');
+
+  if (!isOnline || !GAS_READY) { enqueueOffline({ action:'toggle_check', id, person, value: item[person] }); return; }
+  try {
+    await gasPost({ action:'toggle_check', id, person, value: item[person] });
+    showSync('success', '✓ 已同步');
+  } catch { enqueueOffline({ action:'toggle_check', id, person, value: item[person] }); }
+}
+
+// ── 新增 ──────────────────────────────────────────────────
+async function addCheckItem() {
+  const name = prompt('請輸入新確認項目名稱：');
+  if (!name || !name.trim()) return;
+  const id   = 'c_' + Date.now();
+  const item = { id, name: name.trim(), bao: false, xin: false };
+  checklist.push(item);
+  localStorage.setItem(LS_CHECK, JSON.stringify(checklist));
+  renderChecklist();
+  showToast('✅ 已新增：' + name.trim());
+
+  if (!isOnline || !GAS_READY) { enqueueOffline({ action:'add_check', id, name: name.trim() }); return; }
+  try {
+    const res = await gasPost({ action:'add_check', id, name: name.trim() });
+    const idx = checklist.findIndex(x => x.id === id);
+    if (idx > -1 && res.id) checklist[idx].id = res.id;
+    localStorage.setItem(LS_CHECK, JSON.stringify(checklist));
+    showSync('success', '✓ 已同步新增');
+  } catch { enqueueOffline({ action:'add_check', id, name: name.trim() }); }
+}
+
+// ── 編輯（inline）─────────────────────────────────────────
+function startEditCheck(id) {
+  const item = checklist.find(x => String(x.id) === String(id));
+  if (!item) return;
+  const row = document.getElementById('ci-' + id);
+  const nameDiv = row.querySelector('.ci-name');
+  const orig = item.name;
+  nameDiv.innerHTML = `
+    <input class="ci-edit-input" id="cei-${id}" value="${orig}" maxlength="40">
+    <div>
+      <button class="ci-edit-save" onclick="saveEditCheck('${id}','${orig}')">儲存</button>
+      <button class="ci-edit-cancel" onclick="renderChecklist()">取消</button>
+    </div>`;
+  document.getElementById('cei-' + id).focus();
+}
+
+async function saveEditCheck(id, origName) {
+  const inp  = document.getElementById('cei-' + id);
+  const name = inp ? inp.value.trim() : origName;
+  if (!name) return;
+  const item = checklist.find(x => String(x.id) === String(id));
+  if (item) item.name = name;
+  localStorage.setItem(LS_CHECK, JSON.stringify(checklist));
+  renderChecklist();
+  showToast('✅ 已更新');
+
+  if (!isOnline || !GAS_READY) { enqueueOffline({ action:'edit_check', id, name }); return; }
+  try {
+    await gasPost({ action:'edit_check', id, name });
+    showSync('success', '✓ 已同步編輯');
+  } catch { enqueueOffline({ action:'edit_check', id, name }); }
+}
+
+// ── 刪除 ──────────────────────────────────────────────────
+async function deleteCheck(id) {
+  if (!confirm('確定刪除這個確認項目？')) return;
+  checklist = checklist.filter(x => String(x.id) !== String(id));
+  localStorage.setItem(LS_CHECK, JSON.stringify(checklist));
+  renderChecklist();
+  showToast('🗑️ 已刪除');
+
+  if (!isOnline || !GAS_READY) { enqueueOffline({ action:'delete_check', id }); return; }
+  try {
+    await gasPost({ action:'delete_check', id });
+    showSync('success', '✓ 已同步刪除');
+  } catch { enqueueOffline({ action:'delete_check', id }); }
+}
+
+// ══════════════════════════════════════════════════════════
+//  DEBUG PANEL
+// ══════════════════════════════════════════════════════════
+const debugLogs = [];
+function debugLog(msg, type = 'ok') {
+  debugLogs.unshift({ msg, type, t: new Date().toLocaleTimeString() });
+  if (debugLogs.length > 20) debugLogs.pop();
+  const panel = document.getElementById('debug-panel');
+  if (panel && panel.classList.contains('show')) renderDebugPanel();
+}
+function renderDebugPanel() {
+  const panel = document.getElementById('debug-panel');
+  panel.innerHTML = debugLogs.map(l => `<div class="debug-line ${l.err?'err':l.type}">[${l.t}] ${l.msg}</div>`).join('');
+}
+async function runDebug() {
+  const panel = document.getElementById('debug-panel');
+  panel.classList.add('show');
+  panel.innerHTML = '<div class="debug-line">🔍 測試中...</div>';
+
+  if (!GAS_READY) {
+    panel.innerHTML = '<div class="debug-line err">❌ GAS_URL 尚未設定，請將 YOUR_GAS_WEB_APP_URL_HERE 替換為真實 URL</div>';
+    return;
+  }
+  try {
+    debugLog(`GET ${GAS_URL.slice(0,50)}...`);
+    const res = await gasGet('debug');
+    debugLog(`✅ 連線成功 sheets=${JSON.stringify(res.sheets)}`);
+    debugLog(`Server time: ${res.time}`);
+    // test POST
+    debugLog('嘗試 POST add_expense 測試...');
+    const postRes = await gasPost({ action:'add_expense', name:'[DEBUG TEST]', amount:1, currency:'TWD', payer:'寶', splitWith:'辛', icon:'🔍', note:'自動測試，可手動刪除' });
+    debugLog(`✅ POST 成功 id=${postRes.id}`);
+    // cleanup
+    if (postRes.id) {
+      await gasPost({ action:'delete_expense', id: postRes.id });
+      debugLog('🧹 測試資料已清除');
+    }
+  } catch (e) {
+    debugLog('❌ 錯誤: ' + e.message, 'err');
+  }
+  renderDebugPanel();
+}
+
+// ══════════════════════════════════════════════════════════
+//  NAVIGATION
+// ══════════════════════════════════════════════════════════
+function switchTab(tab) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('screen-' + tab).classList.add('active');
+  document.getElementById('nav-' + tab).classList.add('active');
+  if (tab === 'toolbox') {
+    document.getElementById('toolbox-home').style.display = 'block';
+    document.querySelectorAll('.tool-panel').forEach(p => p.classList.remove('open'));
+  }
+  window.scrollTo(0, 0);
+}
+function switchDay(day, btn) {
+  document.querySelectorAll('.day-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.timeline').forEach(t => t.style.display = 'none');
+  document.getElementById('day-' + day).style.display = 'block';
+}
+
+// ══════════════════════════════════════════════════════════
+//  COUNTDOWN
+// ══════════════════════════════════════════════════════════
+function updateCountdown() {
+  const tripDate = new Date('2026-04-18T02:00:00+08:00');
+  const diff     = tripDate - new Date();
+  const el       = document.getElementById('countdown-days');
+  if (diff <= 0) { el.textContent = '出發中 🎉'; document.getElementById('countdown-detail').textContent = '東京等著你！'; return; }
+  const d = Math.floor(diff / 86400000);
+  const h = Math.floor((diff % 86400000) / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  el.textContent = `${d} 天`;
+  document.getElementById('countdown-detail').textContent = `還有 ${d}天 ${h}時 ${m}分`;
+}
+updateCountdown();
+setInterval(updateCountdown, 30000);
+
+// ══════════════════════════════════════════════════════════
+//  CURRENCY
+// ══════════════════════════════════════════════════════════
+function convertCurrency(from) {
+  if (from === 'jpy') {
+    const v = parseFloat(document.getElementById('jpy-input').value) || 0;
+    document.getElementById('twd-input').value = Math.round(v * JPY_RATE) || '';
+  } else {
+    const v = parseFloat(document.getElementById('twd-input').value) || 0;
+    document.getElementById('jpy-input').value = Math.round(v / JPY_RATE) || '';
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+//  TOOLBOX
+// ══════════════════════════════════════════════════════════
+function showTool(id) {
+  document.getElementById('toolbox-home').style.display = 'none';
+  document.querySelectorAll('.tool-panel').forEach(p => p.classList.remove('open'));
+  document.getElementById('tool-' + id).classList.add('open');
+}
+function hideTool() {
+  document.getElementById('toolbox-home').style.display = 'block';
+  document.querySelectorAll('.tool-panel').forEach(p => p.classList.remove('open'));
+}
+function handleQR(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('qr-img').src = e.target.result;
+    document.getElementById('qr-upload-area').style.display = 'none';
+    document.getElementById('qr-preview').style.display = 'block';
+    try { localStorage.setItem('tokyo_qr', e.target.result); } catch {}
+    showToast('✅ QR Code 已儲存到本機');
+  };
+  reader.readAsDataURL(file);
+}
+const savedQR = localStorage.getItem('tokyo_qr');
+if (savedQR) {
+  window.addEventListener('DOMContentLoaded', () => {
+    const img = document.getElementById('qr-img');
+    if (img) { img.src = savedQR; document.getElementById('qr-upload-area').style.display='none'; document.getElementById('qr-preview').style.display='block'; }
+  });
+}
+function copyPhrase(text, el) {
+  navigator.clipboard?.writeText(text).catch(() => {});
+  showToast('已複製：' + text);
+  el.style.background = 'var(--sakura2)';
+  setTimeout(() => el.style.background = '', 600);
+}
+function openEmergency()  { document.getElementById('emergency-modal').classList.add('open'); }
+function closeEmergency() { document.getElementById('emergency-modal').classList.remove('open'); }
+
+// ══════════════════════════════════════════════════════════
+//  TOAST
+// ══════════════════════════════════════════════════════════
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  clearTimeout(toastTimer);
+  t.textContent = msg;
+  t.classList.add('show');
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ══════════════════════════════════════════════════════════
+//  NETWORK EVENTS
+// ══════════════════════════════════════════════════════════
+window.addEventListener('online', () => {
+  isOnline = true;
+  showSync('success', '✓ 已重新連線', 2000);
+  flushOfflineQueue().then(() => { loadExpenses(); loadChecklist(); });
+});
+window.addEventListener('offline', () => {
+  isOnline = false;
+  showSync('offline', '📵 離線模式 — 資料將自動補傳', 4000);
+});
+
+// ══════════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════════
+document.querySelectorAll('.modal-overlay').forEach(o => {
+  o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
+});
+
+loadExpenses();
+loadChecklist();
+
+// 60 秒自動刷新（共編同步）
+setInterval(() => {
+  if (isOnline && GAS_READY) { loadExpenses(); loadChecklist(); }
+}, 60000);
+</script>
+
+<!-- ══ SERVICE WORKER ══════════════════════════════════════ -->
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js', { scope: './' })
+    .then(() => console.log('SW registered'))
+    .catch(e => console.warn('SW failed:', e));
+}
+</script>
+</body>
+</html>
