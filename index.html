@@ -29,7 +29,7 @@
   document.getElementById('pwa-manifest').href = URL.createObjectURL(blob);
 })();
 </script>
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='36' fill='%231a1714'/%3E%3Ctext y='136' x='90' font-size='110' text-anchor='middle'%3E%F0%9F%8C%B8%3C/text%3E%3C/svg%3E">
 <title>東京快閃 2026</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -283,7 +283,10 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
     </div>
     <div style="font-size:11px;color:var(--text3);text-align:center;margin-top:10px">1 JPY ≈ 0.21 TWD（請依當日牌告為準）</div>
   </div>
-  <button class="primary-btn" onclick="openEM()">＋ 新增支出</button>
+  <div style="display:flex;gap:8px;margin:0 20px 14px">
+    <button class="primary-btn" style="margin:0;flex:3" onclick="openEM()">＋ 新增支出</button>
+    <button style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:15px 8px;font-size:12px;font-weight:600;color:var(--text2);cursor:pointer" onclick="debugGAS()">🔍 測試</button>
+  </div>
   <div class="exp-list" id="exp-list"></div>
 </div>
 
@@ -396,369 +399,661 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 
 <script>
 
-// ══ Custom confirm (iOS PWA standalone blocks native confirm()) ══════════════
-let _cmCb=null;
-function _cmRes(ok){document.getElementById('cm').classList.remove('open');if(_cmCb){_cmCb(ok);_cmCb=null;}}
-function appConfirm(title,msg){
-  return new Promise(r=>{
-    _cmCb=r;
-    document.getElementById('cm-title').textContent=title;
-    document.getElementById('cm-msg').textContent=msg;
+// ══════════════════════════════════════════════════════════════════
+//  東京快閃 2026 — 前端邏輯 v5
+//  根因修復：
+//  1. loadExp 每次都覆蓋 localStorage → 用「GAS 是真相來源」架構
+//     所有操作先 POST 到 GAS，成功後再更新本機，重整時重新拉 GAS
+//  2. local_XXXX id 在 GAS Sheet 找不到 → add 成功後換成 GAS 回傳的真實 id
+//  3. 舊格式 localStorage 干擾 → 改用新 key LS_E='tk_e5'
+//  4. CRUD 操作後立即從 GAS 拉取最新資料，確保前後端一致
+// ══════════════════════════════════════════════════════════════════
+
+// ── custom confirm（iOS PWA 封鎖 window.confirm）──────────────────
+let _cmCb = null;
+function _cmRes(ok){
+  document.getElementById('cm').classList.remove('open');
+  if(_cmCb){ _cmCb(ok); _cmCb = null; }
+}
+function appConfirm(title, msg){
+  return new Promise(r => {
+    _cmCb = r;
+    document.getElementById('cm-title').textContent = title;
+    document.getElementById('cm-msg').textContent   = msg;
     document.getElementById('cm').classList.add('open');
   });
 }
 
-// ★★★ 步驟 1：將下方換成你的 GAS Web App URL ★★★
-// 格式：https://script.google.com/macros/s/XXXXX/exec
-// 部署方式：GAS 編輯器 → Deploy → New deployment → Web App
-//           Execute as: Me  /  Who has access: Anyone
-// ╔══════════════════════════════════════════════════════════╗
-// ║  ★★★ 將下方 YOUR_GAS_URL 換成你的 Web App URL ★★★       ║
-// ║  正確格式：https://script.google.com/macros/s/XXXX/exec  ║
-// ║  取得方式：GAS 編輯器 → Deploy → Manage deployments      ║
-// ║           → 複製 Web app URL（不是 Library URL）         ║
-// ╚══════════════════════════════════════════════════════════╝
+// ══ 設定區 ════════════════════════════════════════════════════════
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbwPJq3dDwdwJhfV_tRG59QOzYMHennXpKtamg0wRjFGBAAxOR8N2C6gMZlO-4bFWZ2RJQ/exec';
-const JPY=0.21, LS_E='tk_e4', LS_C='tk_c4', LS_Q='tk_q4';
-let expenses=[], checklist=[], isOnline=navigator.onLine;
-const GAS_OK=()=>GAS_URL!=='YOUR_GAS_URL' && GAS_URL.includes('script.google.com/macros/s/');
+const JPY = 0.21;
+// ★ 換了新 key，徹底清除舊版壞資料
+const LS_E = 'tk_e5';
+const LS_C = 'tk_c5';
+const LS_Q = 'tk_q5';
 
-// sync ui
-let sT=null;
-function showSync(type,msg,ms=2800){
-  const p=document.getElementById('sync-pill'),t=document.getElementById('sync-text'),s=document.getElementById('spin');
-  clearTimeout(sT);p.className='sync-pill show '+type;t.textContent=msg;s.style.display=type==='syncing'?'block':'none';
-  if(ms>0)sT=setTimeout(()=>p.classList.remove('show'),ms);
+let expenses  = [];
+let checklist = [];
+let isOnline  = navigator.onLine;
+const GAS_OK  = () => GAS_URL.includes('script.google.com/macros/s/') && !GAS_URL.includes('YOUR_GAS');
+
+// ══ Sync UI ═══════════════════════════════════════════════════════
+let _sT = null;
+function showSync(type, msg, ms = 2800){
+  const p = document.getElementById('sync-pill');
+  const t = document.getElementById('sync-text');
+  const s = document.getElementById('spin');
+  clearTimeout(_sT);
+  p.className = 'sync-pill show ' + type;
+  t.textContent = msg;
+  s.style.display = type === 'syncing' ? 'block' : 'none';
+  if(ms > 0) _sT = setTimeout(() => p.classList.remove('show'), ms);
 }
 
-// api
-async function gasGet(a){const r=await fetch(GAS_URL+'?action='+a,{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}
-async function gasPost(p){
-  const r=await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(p),redirect:'follow'});
-  if(!r.ok)throw new Error('HTTP '+r.status);
-  const d=await r.json();if(!d.ok)throw new Error(d.error||'GAS error');return d;
+// ══ GAS API ═══════════════════════════════════════════════════════
+async function gasGet(action){
+  const res = await fetch(GAS_URL + '?action=' + action, { cache: 'no-store' });
+  if(!res.ok) throw new Error('HTTP ' + res.status);
+  const json = await res.json();
+  if(!json.ok) throw new Error('GAS: ' + (json.error || 'error'));
+  return json;
 }
 
-// offline queue
-function enqueue(p){const q=JSON.parse(localStorage.getItem(LS_Q)||'[]');q.push({...p,timestamp:new Date().toISOString()});localStorage.setItem(LS_Q,JSON.stringify(q));}
-async function flush(){
-  const q=JSON.parse(localStorage.getItem(LS_Q)||'[]');
-  if(!q.length||!GAS_OK())return;
-  try{const r=await gasPost({action:'sync_offline',items:q});localStorage.removeItem(LS_Q);showSync('success','已補傳'+r.synced+'筆');}catch{}
+// ⚠️ Content-Type 必須是 text/plain，否則 GAS CORS 會失敗
+async function gasPost(payload){
+  const res = await fetch(GAS_URL, {
+    method:   'POST',
+    headers:  { 'Content-Type': 'text/plain;charset=utf-8' },
+    body:     JSON.stringify(payload),
+    redirect: 'follow'
+  });
+  if(!res.ok) throw new Error('HTTP ' + res.status);
+  let data;
+  try { data = await res.json(); }
+  catch(e){ throw new Error('GAS 回傳非 JSON（確認 Web App 部署設定）'); }
+  if(!data.ok) throw new Error('GAS error: ' + (data.error || 'unknown'));
+  return data;
 }
 
-// expenses
+// ══ Offline Queue ═════════════════════════════════════════════════
+function enqueue(p){
+  const q = JSON.parse(localStorage.getItem(LS_Q) || '[]');
+  q.push({ ...p, ts: Date.now() });
+  localStorage.setItem(LS_Q, JSON.stringify(q));
+  renderPendingBadge();
+}
+
+async function flushQueue(){
+  const q = JSON.parse(localStorage.getItem(LS_Q) || '[]');
+  if(!q.length || !GAS_OK()) return;
+  showSync('syncing', '補傳 ' + q.length + ' 筆離線資料...', 0);
+  try{
+    const r = await gasPost({ action: 'sync_offline', items: q });
+    localStorage.removeItem(LS_Q);
+    renderPendingBadge();
+    showSync('success', '✅ 已補傳 ' + r.synced + ' 筆');
+    await loadExp(); // 補傳後重新拉取最新資料
+  } catch(e){
+    showSync('error', '補傳失敗: ' + e.message.slice(0,30), 3000);
+  }
+}
+
+function renderPendingBadge(){
+  const q = JSON.parse(localStorage.getItem(LS_Q) || '[]');
+  // 可選：在 UI 某處顯示待傳筆數
+}
+
+// ══ EXPENSES — 核心架構 ═══════════════════════════════════════════
+//  原則：GAS Sheet 是唯一真相來源
+//  每次 loadExp 都從 GAS 拉最新資料
+//  本機 localStorage 只是「顯示用快取」，不是主資料源
+
 async function loadExp(){
-  const c=localStorage.getItem(LS_E);if(c){expenses=JSON.parse(c);renderExp();}
-  if(!isOnline||!GAS_OK())return;
-  showSync('syncing','讀取記帳...',0);
-  try{const r=await gasGet('expenses');expenses=r.data||[];localStorage.setItem(LS_E,JSON.stringify(expenses));renderExp();showSync('success','記帳已同步');}
-  catch{showSync('error','同步失敗，顯示本機資料',2500);}
+  // 1. 先用快取快速顯示（避免白屏）
+  const cached = localStorage.getItem(LS_E);
+  if(cached){
+    try{ expenses = JSON.parse(cached); renderExp(); } catch{}
+  }
+
+  // 2. 從 GAS 拉取最新（GAS 是真相）
+  if(!isOnline || !GAS_OK()) return;
+  showSync('syncing', '同步記帳...', 0);
+  try{
+    const r = await gasGet('expenses');
+    expenses = r.data || [];
+    localStorage.setItem(LS_E, JSON.stringify(expenses));
+    renderExp();
+    showSync('success', '✅ 已同步');
+  } catch(err){
+    console.error('loadExp:', err);
+    showSync('error', '讀取失敗，顯示本機資料', 2500);
+  }
 }
 
+// ══ 新增支出 ══════════════════════════════════════════════════════
 async function saveExp(){
-  const editId=document.getElementById('em-edit-id').value;
-  const name=document.getElementById('em-name').value.trim();
-  const amount=parseFloat(document.getElementById('em-amount').value);
-  const cur=document.getElementById('em-cur').value;
-  const payer=document.getElementById('em-payer').value;
-  const split=document.getElementById('em-split').value;
-  const icon=document.getElementById('em-cat').value;
-  const note=document.getElementById('em-note').value.trim();
-  if(!name||!amount||amount<=0){showToast('⚠️ 請填寫名稱和有效金額');return;}
-  const btn=document.getElementById('em-save');btn.disabled=true;
-  const payload={name,amount,currency:cur,payer,splitWith:split,icon,note};
+  const editId = document.getElementById('em-edit-id').value.trim();
+  const name   = document.getElementById('em-name').value.trim();
+  const amount = parseFloat(document.getElementById('em-amount').value);
+  const cur    = document.getElementById('em-cur').value;
+  const payer  = document.getElementById('em-payer').value;
+  const split  = document.getElementById('em-split').value;
+  const icon   = document.getElementById('em-cat').value;
+  const note   = document.getElementById('em-note').value.trim();
+
+  if(!name || !amount || amount <= 0){
+    showToast('⚠️ 請填寫名稱和有效金額'); return;
+  }
+
+  const btn = document.getElementById('em-save');
+  btn.disabled = true;
+  const payload = { name, amount, currency: cur, payer, splitWith: split, icon, note };
+
   if(editId){
-    const idx=expenses.findIndex(e=>String(e.id)===String(editId));
-    if(idx>-1){expenses[idx]={...expenses[idx],...payload};localStorage.setItem(LS_E,JSON.stringify(expenses));renderExp();closeEM();showToast('已更新');}
-    if(isOnline&&GAS_OK()){showSync('syncing','同步中...',0);try{await gasPost({action:'edit_expense',id:editId,...payload});showSync('success','已同步');}catch{enqueue({action:'edit_expense',id:editId,...payload});showSync('error','已存入待同步佇列',3000);}}
-    else enqueue({action:'edit_expense',id:editId,...payload});
-  }else{
-    const tmpId='tmp_'+Date.now();
-    const item={id:tmpId,...payload,settled:false,pendingSync:!GAS_OK()};
-    expenses.push(item);localStorage.setItem(LS_E,JSON.stringify(expenses));renderExp();closeEM();
-    if(!isOnline||!GAS_OK()){enqueue({action:'add_expense',...item});showToast('離線儲存，稍後補傳');}
-    else{
-      showSync('syncing','同步中...',0);
+    // ── 編輯 ──────────────────────────────────────────────────
+    if(!isOnline || !GAS_OK()){
+      // 離線：只更新本機
+      const idx = expenses.findIndex(e => String(e.id) === editId);
+      if(idx > -1){ expenses[idx] = {...expenses[idx], ...payload}; }
+      localStorage.setItem(LS_E, JSON.stringify(expenses));
+      renderExp(); closeEM();
+      enqueue({ action: 'edit_expense', id: editId, ...payload });
+      showToast('📵 離線儲存，稍後補傳');
+    } else {
+      showSync('syncing', '更新中...', 0);
       try{
-        const res=await gasPost({action:'add_expense',...payload});
-        const i=expenses.findIndex(e=>e.id===tmpId);
-        if(i>-1){expenses[i].id=res.id;expenses[i].pendingSync=false;}
-        localStorage.setItem(LS_E,JSON.stringify(expenses));renderExp();showSync('success','已同步到 Google Sheets');showToast('已新增並同步！');
-      }catch{enqueue({action:'add_expense',...item});showSync('error','同步失敗，已離線儲存',3000);}
+        await gasPost({ action: 'edit_expense', id: editId, ...payload });
+        showSync('success', '✅ 已更新');
+        showToast('✅ 已更新');
+        closeEM();
+        await loadExp(); // ← 更新後重新拉取 GAS 最新資料
+      } catch(err){
+        showSync('error', '更新失敗: ' + err.message.slice(0,30), 3000);
+        showToast('❌ 更新失敗，請重試');
+        console.error('edit_expense:', err);
+      }
+    }
+  } else {
+    // ── 新增 ──────────────────────────────────────────────────
+    if(!isOnline || !GAS_OK()){
+      const tmpId = 'tmp_' + Date.now();
+      expenses.push({ id: tmpId, ...payload, settled: false, pendingSync: true });
+      localStorage.setItem(LS_E, JSON.stringify(expenses));
+      renderExp(); closeEM();
+      enqueue({ action: 'add_expense', ...payload });
+      showToast('📵 離線儲存，稍後補傳');
+    } else {
+      showSync('syncing', '新增中...', 0);
+      try{
+        const res = await gasPost({ action: 'add_expense', ...payload });
+        showSync('success', '✅ 已新增並同步');
+        showToast('✅ 已新增！');
+        closeEM();
+        await loadExp(); // ← 新增後重新拉取，確保 id 是 GAS 真實 id
+      } catch(err){
+        showSync('error', '新增失敗: ' + err.message.slice(0,30), 3000);
+        showToast('❌ 新增失敗，請重試');
+        console.error('add_expense:', err);
+      }
     }
   }
-  btn.disabled=false;
+  btn.disabled = false;
 }
 
+// ══ 刪除支出 ══════════════════════════════════════════════════════
 async function delExp(id){
-  if(!await appConfirm('刪除支出','確定要刪除這筆支出嗎？此操作無法復原。'))return;
-  expenses=expenses.filter(e=>String(e.id)!==String(id));
-  localStorage.setItem(LS_E,JSON.stringify(expenses));renderExp();showToast('已刪除');
-  if(!isOnline||!GAS_OK()){enqueue({action:'delete_expense',id});return;}
-  try{await gasPost({action:'delete_expense',id});showSync('success','已同步刪除');}catch{enqueue({action:'delete_expense',id});}
+  const ok = await appConfirm('刪除支出', '確定要刪除這筆支出嗎？');
+  if(!ok) return;
+
+  if(!isOnline || !GAS_OK()){
+    expenses = expenses.filter(e => String(e.id) !== String(id));
+    localStorage.setItem(LS_E, JSON.stringify(expenses));
+    renderExp();
+    enqueue({ action: 'delete_expense', id });
+    showToast('📵 離線刪除，稍後同步');
+    return;
+  }
+
+  showSync('syncing', '刪除中...', 0);
+  try{
+    await gasPost({ action: 'delete_expense', id });
+    showSync('success', '✅ 已刪除');
+    showToast('✅ 已刪除');
+    await loadExp(); // ← 刪除後重新拉取
+  } catch(err){
+    showSync('error', '刪除失敗: ' + err.message.slice(0,30), 3000);
+    showToast('❌ 刪除失敗: ' + err.message.slice(0,30));
+    console.error('delete_expense:', err);
+  }
 }
 
+// ══ 結清支出 ══════════════════════════════════════════════════════
 async function settleExp(id){
-  const item=expenses.find(e=>String(e.id)===String(id));if(!item)return;
-  item.settled=!item.settled;localStorage.setItem(LS_E,JSON.stringify(expenses));renderExp();
-  if(!isOnline||!GAS_OK()){enqueue({action:'settle_expense',id});return;}
-  try{await gasPost({action:'settle_expense',id});showSync('success',item.settled?'已結清':'取消結清');}catch{enqueue({action:'settle_expense',id});}
+  if(!isOnline || !GAS_OK()){
+    const item = expenses.find(e => String(e.id) === String(id));
+    if(!item) return;
+    item.settled = !item.settled;
+    localStorage.setItem(LS_E, JSON.stringify(expenses));
+    renderExp();
+    enqueue({ action: 'settle_expense', id });
+    return;
+  }
+  showSync('syncing', '更新中...', 0);
+  try{
+    await gasPost({ action: 'settle_expense', id });
+    await loadExp();
+    showSync('success', '✅ 已更新');
+  } catch(err){
+    showSync('error', '操作失敗', 2000);
+    console.error('settle_expense:', err);
+  }
 }
 
+// ══ 編輯彈窗 ══════════════════════════════════════════════════════
 function editExp(id){
-  const e=expenses.find(x=>String(x.id)===String(id));if(!e)return;
-  document.getElementById('em-edit-id').value=e.id;document.getElementById('em-name').value=e.name;
-  document.getElementById('em-amount').value=e.amount;document.getElementById('em-cur').value=e.currency||'TWD';
-  document.getElementById('em-payer').value=e.payer||'寶';document.getElementById('em-split').value=e.splitWith||'辛';
-  document.getElementById('em-cat').value=e.icon||'🍜';document.getElementById('em-note').value=e.note||'';
-  document.getElementById('em-title').textContent='編輯支出';document.getElementById('em').classList.add('open');
+  const e = expenses.find(x => String(x.id) === String(id));
+  if(!e){
+    showToast('⚠️ 找不到資料，正在重新整理...');
+    loadExp();
+    return;
+  }
+  document.getElementById('em-edit-id').value  = String(e.id);
+  document.getElementById('em-name').value     = e.name    || '';
+  document.getElementById('em-amount').value   = e.amount  || '';
+  document.getElementById('em-cur').value      = e.currency || 'TWD';
+  document.getElementById('em-payer').value    = e.payer   || '寶';
+  document.getElementById('em-split').value    = e.splitWith || '辛';
+  document.getElementById('em-cat').value      = e.icon    || '🍜';
+  document.getElementById('em-note').value     = e.note    || '';
+  document.getElementById('em-title').textContent = '編輯支出';
+  document.getElementById('em').classList.add('open');
 }
 
-function toTWD(e){return e.currency==='JPY'?Math.round(e.amount*JPY):Number(e.amount);}
+function toTWD(e){ return e.currency === 'JPY' ? Math.round(e.amount * JPY) : Number(e.amount); }
 
+// ══ 渲染記帳清單 ══════════════════════════════════════════════════
 function renderExp(){
-  const list=document.getElementById('exp-list');
-  let bP=0,xP=0,g=0;
-  expenses.forEach(e=>{const t=toTWD(e);g+=t;if(e.payer==='寶')bP+=t;else if(e.payer==='辛')xP+=t;});
-  document.getElementById('es-total').textContent='NT$'+g.toLocaleString();
-  document.getElementById('es-bao').textContent='NT$'+bP.toLocaleString();
-  document.getElementById('es-xin').textContent='NT$'+xP.toLocaleString();
-  document.getElementById('dash-total').textContent='NT$'+g.toLocaleString();
-  document.getElementById('dash-sub').textContent='共'+expenses.length+'筆支出';
+  const list = document.getElementById('exp-list');
+  let bP = 0, xP = 0, g = 0;
+  expenses.forEach(e => {
+    const t = toTWD(e); g += t;
+    if(e.payer === '寶') bP += t;
+    else if(e.payer === '辛') xP += t;
+  });
+  document.getElementById('es-total').textContent = 'NT$' + g.toLocaleString();
+  document.getElementById('es-bao').textContent   = 'NT$' + bP.toLocaleString();
+  document.getElementById('es-xin').textContent   = 'NT$' + xP.toLocaleString();
+  document.getElementById('dash-total').textContent = 'NT$' + g.toLocaleString();
+  document.getElementById('dash-sub').textContent  = '共 ' + expenses.length + ' 筆支出';
   renderSettle();
-  if(!expenses.length){list.innerHTML='<div style="text-align:center;padding:40px 20px;color:var(--text3);font-size:14px">還沒有支出紀錄</div>';return;}
-  list.innerHTML=expenses.map(e=>{
-    const t=toTWD(e),solo=e.splitWith==='solo',each=solo?t:Math.round(t/2);
-    const amt=e.currency==='JPY'?'¥'+Number(e.amount).toLocaleString()+' ≈ NT$'+t.toLocaleString():'NT$'+t.toLocaleString();
-    const meta=solo?e.payer+' 自付':e.payer+' 先付 · 各 NT$'+each.toLocaleString();
-    const badge=e.pendingSync?'<span class="off-badge">未同步</span>':'';
-    return '<div class="ei'+(e.settled?' settled':'')+(e.pendingSync?' pending':'')+'" data-id="'+e.id+'">'
-      +'<div class="ei-icon">'+(e.icon||'💴')+'</div>'
-      +'<div class="ei-info">'
-        +'<div class="ei-name">'+e.name+badge+'</div>'
-        +'<div class="ei-meta">'+meta+'</div>'
-        +(e.note?'<div class="ei-meta" style="opacity:.7">'+e.note+'</div>':'')
-        +'<div class="ei-tag">'+amt+'</div>'
-        +'<div class="ei-acts">'
-          +'<button class="ei-btn settle'+(e.settled?' done':'')+'" data-action="settle" data-id="'+e.id+'">'+(e.settled?'✓ 已結清':'結清')+'</button>'
-          +'<button class="ei-btn edit" data-action="edit" data-id="'+e.id+'">編輯</button>'
-          +'<button class="ei-btn del" data-action="del" data-id="'+e.id+'">刪除</button>'
-        +'</div>'
-      +'</div>'
-      +'<div class="ei-right"><div class="ei-total">NT$'+t.toLocaleString()+'</div>'
-      +(!solo?'<div class="ei-each">各 '+each.toLocaleString()+'</div>':'')
-      +'</div></div>';
+
+  if(!expenses.length){
+    list.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--text3);font-size:14px">還沒有支出紀錄</div>';
+    return;
+  }
+
+  list.innerHTML = expenses.map(e => {
+    const t    = toTWD(e);
+    const solo = e.splitWith === 'solo';
+    const each = solo ? t : Math.round(t / 2);
+    const amt  = e.currency === 'JPY'
+      ? '¥' + Number(e.amount).toLocaleString() + ' ≈ NT$' + t.toLocaleString()
+      : 'NT$' + t.toLocaleString();
+    const meta  = solo ? e.payer + ' 自付' : e.payer + ' 先付 · 各 NT$' + each.toLocaleString();
+    const badge = e.pendingSync ? '<span class="off-badge">未同步</span>' : '';
+    const sid   = String(e.id);
+    return '<div class="ei' + (e.settled ? ' settled' : '') + (e.pendingSync ? ' pending' : '') + '" data-id="' + sid + '">'
+      + '<div class="ei-icon">' + (e.icon || '💴') + '</div>'
+      + '<div class="ei-info">'
+        + '<div class="ei-name">' + e.name + badge + '</div>'
+        + '<div class="ei-meta">' + meta + '</div>'
+        + (e.note ? '<div class="ei-meta" style="opacity:.7">' + e.note + '</div>' : '')
+        + '<div class="ei-tag">' + amt + '</div>'
+        + '<div class="ei-acts">'
+          + '<button class="ei-btn settle' + (e.settled ? ' done' : '') + '" data-action="settle" data-id="' + sid + '">' + (e.settled ? '✓ 已結清' : '結清') + '</button>'
+          + '<button class="ei-btn edit"   data-action="edit"   data-id="' + sid + '">編輯</button>'
+          + '<button class="ei-btn del"    data-action="del"    data-id="' + sid + '">刪除</button>'
+        + '</div>'
+      + '</div>'
+      + '<div class="ei-right">'
+        + '<div class="ei-total">NT$' + t.toLocaleString() + '</div>'
+        + (!solo ? '<div class="ei-each">各 ' + each.toLocaleString() + '</div>' : '')
+      + '</div></div>';
   }).join('');
 }
 
-// ★ 事件委派 — 動態渲染後按鈕依然有效
-document.getElementById('exp-list').addEventListener('click',function(ev){
-  const btn=ev.target.closest('[data-action]');if(!btn)return;
-  const a=btn.dataset.action,id=btn.dataset.id;
-  if(a==='settle')settleExp(id);
-  else if(a==='edit')editExp(id);
-  else if(a==='del')delExp(id);
+// 事件委派（一個 listener 處理所有動態按鈕）
+document.getElementById('exp-list').addEventListener('click', function(ev){
+  const btn = ev.target.closest('[data-action]');
+  if(!btn) return;
+  ev.stopPropagation();
+  const a  = btn.dataset.action;
+  const id = btn.dataset.id;
+  if(a === 'settle') settleExp(id);
+  else if(a === 'edit') editExp(id);
+  else if(a === 'del')  delExp(id);
 });
 
+// ══ 即時結算 ══════════════════════════════════════════════════════
 function renderSettle(){
-  const body=document.getElementById('settle-body');
-  const active=expenses.filter(e=>!e.settled);
-  if(!active.length){body.innerHTML='<div style="font-size:13px;color:var(--text3);text-align:center;padding:8px 0">目前無未結清支出 🎉</div>';return;}
-  const totals={'寶':0,'辛':0},paid={'寶':0,'辛':0};
-  active.forEach(e=>{
-    const t=toTWD(e);
-    if(e.splitWith!=='solo'){totals['寶']+=Math.round(t/2);totals['辛']+=Math.round(t/2);}else totals[e.payer]+=t;
-    if(paid[e.payer]!==undefined)paid[e.payer]+=t;
+  const body   = document.getElementById('settle-body');
+  const active = expenses.filter(e => !e.settled);
+  if(!active.length){
+    body.innerHTML = '<div style="font-size:13px;color:var(--text3);text-align:center;padding:8px 0">目前無未結清支出 🎉</div>';
+    return;
+  }
+  const totals = { '寶': 0, '辛': 0 };
+  const paid   = { '寶': 0, '辛': 0 };
+  active.forEach(e => {
+    const t = toTWD(e);
+    if(e.splitWith !== 'solo'){ totals['寶'] += Math.round(t/2); totals['辛'] += Math.round(t/2); }
+    else totals[e.payer] += t;
+    if(paid[e.payer] !== undefined) paid[e.payer] += t;
   });
-  const bd=paid['寶']-totals['寶'],xd=paid['辛']-totals['辛'];
-  const v=Math.abs(bd)<5?'<div style="color:var(--green);font-weight:700">兩人目前平帳！</div>'
-    :bd>0?'<div>辛 需付給 寶 <strong>NT$'+Math.abs(bd).toLocaleString()+'</strong></div>'
-    :'<div>寶 需付給 辛 <strong>NT$'+Math.abs(xd).toLocaleString()+'</strong></div>';
-  body.innerHTML='<div class="sc-row"><span class="sc-person">寶</span><div>'
-    +'<div style="font-size:11px;color:var(--text3)">先付 NT$'+paid['寶'].toLocaleString()+' · 應付 NT$'+totals['寶'].toLocaleString()+'</div>'
-    +'<div class="sc-amt '+(bd>=0?'recv':'owes')+'">'+(bd>=0?'+':'')+'NT$'+bd.toLocaleString()+'</div></div></div>'
-    +'<div class="sc-row"><span class="sc-person">辛</span><div>'
-    +'<div style="font-size:11px;color:var(--text3)">先付 NT$'+paid['辛'].toLocaleString()+' · 應付 NT$'+totals['辛'].toLocaleString()+'</div>'
-    +'<div class="sc-amt '+(xd>=0?'recv':'owes')+'">'+(xd>=0?'+':'')+'NT$'+xd.toLocaleString()+'</div></div></div>'
-    +'<div class="sc-verdict">'+v+'</div>';
+  const bd = paid['寶'] - totals['寶'];
+  const xd = paid['辛'] - totals['辛'];
+  const v  = Math.abs(bd) < 5
+    ? '<div style="color:var(--green);font-weight:700">兩人目前平帳！</div>'
+    : bd > 0
+      ? '<div>辛 需付給 寶 <strong>NT$' + Math.abs(bd).toLocaleString() + '</strong></div>'
+      : '<div>寶 需付給 辛 <strong>NT$' + Math.abs(xd).toLocaleString() + '</strong></div>';
+  body.innerHTML =
+    '<div class="sc-row"><span class="sc-person">寶</span><div>'
+    + '<div style="font-size:11px;color:var(--text3)">先付 NT$' + paid['寶'].toLocaleString() + ' · 應付 NT$' + totals['寶'].toLocaleString() + '</div>'
+    + '<div class="sc-amt ' + (bd >= 0 ? 'recv' : 'owes') + '">' + (bd >= 0 ? '+' : '') + 'NT$' + bd.toLocaleString() + '</div>'
+    + '</div></div>'
+    + '<div class="sc-row"><span class="sc-person">辛</span><div>'
+    + '<div style="font-size:11px;color:var(--text3)">先付 NT$' + paid['辛'].toLocaleString() + ' · 應付 NT$' + totals['辛'].toLocaleString() + '</div>'
+    + '<div class="sc-amt ' + (xd >= 0 ? 'recv' : 'owes') + '">' + (xd >= 0 ? '+' : '') + 'NT$' + xd.toLocaleString() + '</div>'
+    + '</div></div>'
+    + '<div class="sc-verdict">' + v + '</div>';
 }
 
+// ══ Modal helpers ══════════════════════════════════════════════════
 function openEM(){
-  ['em-edit-id','em-name','em-note'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('em-amount').value='';document.getElementById('em-cur').value='TWD';
-  document.getElementById('em-payer').value='寶';document.getElementById('em-split').value='辛';
-  document.getElementById('em-cat').value='🍜';document.getElementById('em-title').textContent='新增支出';
+  ['em-edit-id','em-name','em-note'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('em-amount').value = '';
+  document.getElementById('em-cur').value    = 'TWD';
+  document.getElementById('em-payer').value  = '寶';
+  document.getElementById('em-split').value  = '辛';
+  document.getElementById('em-cat').value    = '🍜';
+  document.getElementById('em-title').textContent = '新增支出';
   document.getElementById('em').classList.add('open');
 }
-function closeEM(){document.getElementById('em').classList.remove('open');}
-function openEM2(){document.getElementById('em2').classList.add('open');}
-function closeEM2(){document.getElementById('em2').classList.remove('open');}
+function closeEM(){ document.getElementById('em').classList.remove('open'); }
+function openEM2(){ document.getElementById('em2').classList.add('open'); }
+function closeEM2(){ document.getElementById('em2').classList.remove('open'); }
 
-// checklist
+// ══ CHECKLIST ══════════════════════════════════════════════════════
 async function loadCL(){
-  const c=localStorage.getItem(LS_C);checklist=c?JSON.parse(c):defCL();renderCL();
-  if(!isOnline||!GAS_OK())return;
-  try{const r=await gasGet('checklist');if(r.ok&&r.data&&r.data.length){checklist=r.data;localStorage.setItem(LS_C,JSON.stringify(checklist));renderCL();}}catch{}
+  const c = localStorage.getItem(LS_C);
+  checklist = c ? JSON.parse(c) : defCL();
+  renderCL();
+  if(!isOnline || !GAS_OK()) return;
+  try{
+    const r = await gasGet('checklist');
+    if(r.data && r.data.length){
+      checklist = r.data;
+      localStorage.setItem(LS_C, JSON.stringify(checklist));
+      renderCL();
+    }
+  } catch{}
 }
-function defCL(){return[
-  {id:'c1',name:'買網卡 eSIM',bao:true,xin:true},{id:'c2',name:'旅平險',bao:true,xin:true},
-  {id:'c3',name:'申請 Visit Japan Web',bao:false,xin:false},{id:'c4',name:'帶護照',bao:false,xin:false},
-  {id:'c5',name:'Skyliner 來回車票',bao:false,xin:false},{id:'c6',name:'六本木 Hills 門票',bao:false,xin:false},
-  {id:'c7',name:'訂房家燒肉',bao:true,xin:true},{id:'c8',name:'役男出境申請',bao:false,xin:false},
-];}
+
+function defCL(){ return [
+  { id:'c1', name:'買網卡 eSIM',         bao:true,  xin:true  },
+  { id:'c2', name:'旅平險',              bao:true,  xin:true  },
+  { id:'c3', name:'申請 Visit Japan Web', bao:false, xin:false },
+  { id:'c4', name:'帶護照',              bao:false, xin:false },
+  { id:'c5', name:'Skyliner 來回車票',   bao:false, xin:false },
+  { id:'c6', name:'六本木 Hills 門票',   bao:false, xin:false },
+  { id:'c7', name:'訂房家燒肉',          bao:true,  xin:true  },
+  { id:'c8', name:'役男出境申請',        bao:false, xin:false },
+]; }
 
 function renderCL(){
-  document.getElementById('cl-list').innerHTML=checklist.map(it=>
-    '<div class="cl-item'+(it.bao&&it.xin?' all-done':'')+'" id="ci-'+it.id+'">'
-    +'<div class="cl-box">'+(it.bao&&it.xin?'✓':'')+'</div>'
-    +'<div class="cl-name" id="cln-'+it.id+'">'+it.name+'</div>'
-    +'<div class="cl-right">'
-      +'<div class="cl-persons">'
-        +'<div class="person-badge'+(it.bao?' done':'')+'" data-clid="'+it.id+'" data-person="bao">寶</div>'
-        +'<div class="person-badge'+(it.xin?' done':'')+'" data-clid="'+it.id+'" data-person="xin">辛</div>'
-      +'</div>'
-      +'<div class="cl-edit-acts">'
-        +'<button class="cl-act edit" data-clact="edit" data-clid="'+it.id+'">✏️</button>'
-        +'<button class="cl-act del" data-clact="del" data-clid="'+it.id+'">🗑️</button>'
-      +'</div>'
-    +'</div></div>'
+  document.getElementById('cl-list').innerHTML = checklist.map(it =>
+    '<div class="cl-item' + (it.bao && it.xin ? ' all-done' : '') + '" id="ci-' + it.id + '">'
+    + '<div class="cl-box">' + (it.bao && it.xin ? '✓' : '') + '</div>'
+    + '<div class="cl-name" id="cln-' + it.id + '">' + it.name + '</div>'
+    + '<div class="cl-right">'
+      + '<div class="cl-persons">'
+        + '<div class="person-badge' + (it.bao ? ' done' : '') + '" data-clid="' + it.id + '" data-person="bao">寶</div>'
+        + '<div class="person-badge' + (it.xin ? ' done' : '') + '" data-clid="' + it.id + '" data-person="xin">辛</div>'
+      + '</div>'
+      + '<div class="cl-edit-acts">'
+        + '<button class="cl-act edit" data-clact="edit" data-clid="' + it.id + '">✏️</button>'
+        + '<button class="cl-act del"  data-clact="del"  data-clid="' + it.id + '">🗑️</button>'
+      + '</div>'
+    + '</div></div>'
   ).join('');
 }
 
-// ★ 事件委派
-document.getElementById('cl-list').addEventListener('click',function(ev){
-  const badge=ev.target.closest('[data-person]');
-  const act=ev.target.closest('[data-clact]');
-  if(badge){ev.stopPropagation();toggleCL(badge.dataset.clid,badge.dataset.person);}
-  else if(act){if(act.dataset.clact==='edit')startEditCL(act.dataset.clid);else if(act.dataset.clact==='del')delCL(act.dataset.clid);}
+document.getElementById('cl-list').addEventListener('click', function(ev){
+  const badge = ev.target.closest('[data-person]');
+  const act   = ev.target.closest('[data-clact]');
+  if(badge){ ev.stopPropagation(); toggleCL(badge.dataset.clid, badge.dataset.person); }
+  else if(act){
+    if(act.dataset.clact === 'edit') startEditCL(act.dataset.clid);
+    else if(act.dataset.clact === 'del') delCL(act.dataset.clid);
+  }
 });
 
-async function toggleCL(id,person){
-  const item=checklist.find(x=>String(x.id)===String(id));if(!item)return;
-  item[person]=!item[person];localStorage.setItem(LS_C,JSON.stringify(checklist));renderCL();
-  if(checklist.length&&checklist.every(x=>x.bao&&x.xin))showToast('全部準備完成！');
-  if(!isOnline||!GAS_OK()){enqueue({action:'toggle_check',id,person,value:item[person]});return;}
-  try{await gasPost({action:'toggle_check',id,person,value:item[person]});showSync('success','已同步');}
-  catch{enqueue({action:'toggle_check',id,person,value:item[person]});}
+async function toggleCL(id, person){
+  const item = checklist.find(x => String(x.id) === String(id));
+  if(!item) return;
+  item[person] = !item[person];
+  localStorage.setItem(LS_C, JSON.stringify(checklist));
+  renderCL();
+  if(checklist.every(x => x.bao && x.xin)) showToast('🎉 全部準備完成！');
+  if(!isOnline || !GAS_OK()){ enqueue({ action:'toggle_check', id, person, value: item[person] }); return; }
+  try{ await gasPost({ action:'toggle_check', id, person, value: item[person] }); }
+  catch{ enqueue({ action:'toggle_check', id, person, value: item[person] }); }
 }
+
 async function addCL(){
-  // iOS PWA 封鎖原生 prompt()，改用底部輸入框
   const existing = document.getElementById('add-cl-bar');
-  if(existing){existing.remove();return;}
+  if(existing){ existing.remove(); return; }
   const bar = document.createElement('div');
-  bar.id='add-cl-bar';
-  bar.style.cssText='position:fixed;bottom:calc(72px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:var(--surface);border-top:1px solid var(--border);padding:12px 20px;display:flex;gap:8px;z-index:150;';
-  bar.innerHTML='<input id="add-cl-inp" type="text" placeholder="新確認項目名稱..." style="flex:1;border:1.5px solid var(--accent);border-radius:10px;padding:10px 14px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text);outline:none" onkeydown="if(event.key===\'Enter\')submitAddCL()">'
-    +'<button onclick="submitAddCL()" style="background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:700;cursor:pointer">新增</button>'
-    +'<button onclick="closeAddCLBar()" style="background:var(--surface2);color:var(--text2);border:none;border-radius:10px;padding:10px 14px;font-size:14px;cursor:pointer">✕</button>';
+  bar.id = 'add-cl-bar';
+  bar.style.cssText = 'position:fixed;bottom:calc(72px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:var(--surface);border-top:1px solid var(--border);padding:12px 20px;display:flex;gap:8px;z-index:150;box-shadow:0 -4px 20px rgba(0,0,0,.08)';
+  bar.innerHTML =
+    '<input id="add-cl-inp" type="text" placeholder="新確認項目名稱..." style="flex:1;border:1.5px solid var(--accent);border-radius:10px;padding:10px 14px;font-size:14px;font-family:inherit;background:var(--bg);color:var(--text);outline:none" onkeydown="if(event.key===\'Enter\')submitAddCL()">'
+    + '<button onclick="submitAddCL()" style="background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:700;cursor:pointer">新增</button>'
+    + '<button onclick="closeAddCLBar()" style="background:var(--surface2);color:var(--text2);border:none;border-radius:10px;padding:10px 14px;font-size:14px;cursor:pointer">✕</button>';
   document.body.appendChild(bar);
-  setTimeout(()=>document.getElementById('add-cl-inp')?.focus(),100);
+  setTimeout(() => document.getElementById('add-cl-inp')?.focus(), 100);
 }
-function closeAddCLBar(){const b=document.getElementById('add-cl-bar');if(b)b.remove();}
+
+function closeAddCLBar(){ const b = document.getElementById('add-cl-bar'); if(b) b.remove(); }
+
 async function submitAddCL(){
-  const inp=document.getElementById('add-cl-inp');
-  const name=inp?inp.value.trim():'';
-  if(!name){showToast('⚠️ 請輸入項目名稱');return;}
-  document.getElementById('add-cl-bar')?.remove();
-  const id='c_'+Date.now();checklist.push({id,name,bao:false,xin:false});
-  localStorage.setItem(LS_C,JSON.stringify(checklist));renderCL();showToast('已新增：'+name);
-  if(!isOnline||!GAS_OK()){enqueue({action:'add_check',id,name});return;}
-  try{const r=await gasPost({action:'add_check',id,name});
-    const i=checklist.findIndex(x=>x.id===id);if(i>-1&&r.id){checklist[i].id=r.id;localStorage.setItem(LS_C,JSON.stringify(checklist));}
-    showSync('success','已同步');}
-  catch{enqueue({action:'add_check',id,name});}
+  const inp  = document.getElementById('add-cl-inp');
+  const name = inp ? inp.value.trim() : '';
+  if(!name){ showToast('⚠️ 請輸入項目名稱'); return; }
+  closeAddCLBar();
+  const id = 'c_' + Date.now();
+  checklist.push({ id, name, bao: false, xin: false });
+  localStorage.setItem(LS_C, JSON.stringify(checklist));
+  renderCL();
+  showToast('已新增：' + name);
+  if(!isOnline || !GAS_OK()){ enqueue({ action:'add_check', id, name }); return; }
+  try{
+    const r = await gasPost({ action:'add_check', id, name });
+    const i = checklist.findIndex(x => x.id === id);
+    if(i > -1 && r.id){ checklist[i].id = r.id; localStorage.setItem(LS_C, JSON.stringify(checklist)); }
+    showSync('success', '✅ 已同步');
+  } catch{ enqueue({ action:'add_check', id, name }); }
 }
+
 function startEditCL(id){
-  const item=checklist.find(x=>String(x.id)===String(id));if(!item)return;
-  const nd=document.getElementById('cln-'+id);if(!nd)return;
-  nd.innerHTML='<input class="cl-edit-input" id="cei-'+id+'" value="'+item.name+'" maxlength="40">'
-    +'<div><button class="cl-save" onclick="saveEditCL(\''+id+'\')">儲存</button>'
-    +'<button class="cl-cancel" onclick="renderCL()">取消</button></div>';
-  const inp=document.getElementById('cei-'+id);if(inp)inp.focus();
+  const item = checklist.find(x => String(x.id) === String(id));
+  if(!item) return;
+  const nd = document.getElementById('cln-' + id);
+  if(!nd) return;
+  nd.innerHTML =
+    '<input class="cl-edit-input" id="cei-' + id + '" value="' + item.name + '" maxlength="40">'
+    + '<div><button class="cl-save" onclick="saveEditCL(\'' + id + '\')">儲存</button>'
+    + '<button class="cl-cancel" onclick="renderCL()">取消</button></div>';
+  const inp = document.getElementById('cei-' + id);
+  if(inp) inp.focus();
 }
+
 async function saveEditCL(id){
-  const inp=document.getElementById('cei-'+id);const name=inp?inp.value.trim():'';if(!name)return;
-  const item=checklist.find(x=>String(x.id)===String(id));if(item)item.name=name;
-  localStorage.setItem(LS_C,JSON.stringify(checklist));renderCL();showToast('已更新');
-  if(!isOnline||!GAS_OK()){enqueue({action:'edit_check',id,name});return;}
-  try{await gasPost({action:'edit_check',id,name});showSync('success','已同步');}
-  catch{enqueue({action:'edit_check',id,name});}
+  const inp  = document.getElementById('cei-' + id);
+  const name = inp ? inp.value.trim() : '';
+  if(!name) return;
+  const item = checklist.find(x => String(x.id) === String(id));
+  if(item) item.name = name;
+  localStorage.setItem(LS_C, JSON.stringify(checklist));
+  renderCL();
+  showToast('✅ 已更新');
+  if(!isOnline || !GAS_OK()){ enqueue({ action:'edit_check', id, name }); return; }
+  try{ await gasPost({ action:'edit_check', id, name }); showSync('success', '✅ 已同步'); }
+  catch{ enqueue({ action:'edit_check', id, name }); }
 }
+
 async function delCL(id){
-  if(!await appConfirm('刪除確認項目','確定要刪除這個確認項目嗎？'))return;
-  checklist=checklist.filter(x=>String(x.id)!==String(id));
-  localStorage.setItem(LS_C,JSON.stringify(checklist));renderCL();showToast('已刪除');
-  if(!isOnline||!GAS_OK()){enqueue({action:'delete_check',id});return;}
-  try{await gasPost({action:'delete_check',id});showSync('success','已同步刪除');}
-  catch{enqueue({action:'delete_check',id});}
+  const ok = await appConfirm('刪除確認項目', '確定要刪除這個確認項目嗎？');
+  if(!ok) return;
+  checklist = checklist.filter(x => String(x.id) !== String(id));
+  localStorage.setItem(LS_C, JSON.stringify(checklist));
+  renderCL();
+  showToast('✅ 已刪除');
+  if(!isOnline || !GAS_OK()){ enqueue({ action:'delete_check', id }); return; }
+  try{ await gasPost({ action:'delete_check', id }); showSync('success', '✅ 已同步刪除'); }
+  catch{ enqueue({ action:'delete_check', id }); }
 }
 
-// navigation
+// ══ GAS Debug ══════════════════════════════════════════════════════
+async function debugGAS(){
+  if(!GAS_OK()){ showToast('❌ GAS_URL 未設定'); return; }
+  showSync('syncing', '測試連線...', 0);
+  try{
+    const r = await gasGet('debug');
+    showSync('success', '✅ GAS 正常 | sheets: ' + JSON.stringify(r.sheets), 5000);
+    showToast('✅ 連線正常');
+  } catch(err){
+    showSync('error', '❌ ' + err.message.slice(0,40), 5000);
+    showToast('❌ ' + err.message.slice(0,50));
+  }
+}
+
+// ══ 導航 ══════════════════════════════════════════════════════════
 function switchTab(tab){
-  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-  document.getElementById('screen-'+tab).classList.add('active');
-  document.getElementById('nav-'+tab).classList.add('active');
-  if(tab==='toolbox'){document.getElementById('tb-home').style.display='block';document.querySelectorAll('.tool-panel').forEach(p=>p.classList.remove('open'));}
-  window.scrollTo(0,0);
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('screen-' + tab).classList.add('active');
+  document.getElementById('nav-' + tab).classList.add('active');
+  if(tab === 'toolbox'){
+    document.getElementById('tb-home').style.display = 'block';
+    document.querySelectorAll('.tool-panel').forEach(p => p.classList.remove('open'));
+  }
+  window.scrollTo(0, 0);
 }
-function switchDay(day,btn){
-  document.querySelectorAll('.day-tab').forEach(t=>t.classList.remove('active'));btn.classList.add('active');
-  document.querySelectorAll('.timeline').forEach(t=>t.style.display='none');
-  document.getElementById('day-'+day).style.display='block';
+function switchDay(day, btn){
+  document.querySelectorAll('.day-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.timeline').forEach(t => t.style.display = 'none');
+  document.getElementById('day-' + day).style.display = 'block';
 }
 
-// countdown
+// ══ 倒數 ══════════════════════════════════════════════════════════
 function updateCD(){
-  const diff=new Date('2026-04-18T02:00:00+08:00')-new Date();
-  const el=document.getElementById('cd-days');
-  if(diff<=0){el.textContent='出發中 🎉';document.getElementById('cd-detail').textContent='東京等著你！';return;}
-  const d=Math.floor(diff/86400000),h=Math.floor((diff%86400000)/3600000),m=Math.floor((diff%3600000)/60000);
-  el.textContent=d+' 天';document.getElementById('cd-detail').textContent='還有 '+d+'天 '+h+'時 '+m+'分';
+  const diff = new Date('2026-04-18T02:00:00+08:00') - new Date();
+  const el   = document.getElementById('cd-days');
+  if(diff <= 0){ el.textContent = '出發中 🎉'; document.getElementById('cd-detail').textContent = '東京等著你！'; return; }
+  const d = Math.floor(diff / 86400000);
+  const h = Math.floor((diff % 86400000) / 3600000);
+  const m = Math.floor((diff % 3600000)  / 60000);
+  el.textContent = d + ' 天';
+  document.getElementById('cd-detail').textContent = '還有 ' + d + '天 ' + h + '時 ' + m + '分';
 }
-updateCD();setInterval(updateCD,30000);
+updateCD();
+setInterval(updateCD, 30000);
 
-// currency
+// ══ 換算 ══════════════════════════════════════════════════════════
 function convCur(from){
-  if(from==='jpy'){const v=parseFloat(document.getElementById('jpy-in').value)||0;document.getElementById('twd-in').value=Math.round(v*JPY)||'';}
-  else{const v=parseFloat(document.getElementById('twd-in').value)||0;document.getElementById('jpy-in').value=Math.round(v/JPY)||'';}
+  if(from === 'jpy'){
+    const v = parseFloat(document.getElementById('jpy-in').value) || 0;
+    document.getElementById('twd-in').value = Math.round(v * JPY) || '';
+  } else {
+    const v = parseFloat(document.getElementById('twd-in').value) || 0;
+    document.getElementById('jpy-in').value = Math.round(v / JPY) || '';
+  }
 }
 
-// toolbox
-function showTool(id){document.getElementById('tb-home').style.display='none';document.querySelectorAll('.tool-panel').forEach(p=>p.classList.remove('open'));document.getElementById('tool-'+id).classList.add('open');}
-function hideTool(){document.getElementById('tb-home').style.display='block';document.querySelectorAll('.tool-panel').forEach(p=>p.classList.remove('open'));}
+// ══ 工具箱 ══════════════════════════════════════════════════════
+function showTool(id){ document.getElementById('tb-home').style.display='none'; document.querySelectorAll('.tool-panel').forEach(p=>p.classList.remove('open')); document.getElementById('tool-'+id).classList.add('open'); }
+function hideTool(){ document.getElementById('tb-home').style.display='block'; document.querySelectorAll('.tool-panel').forEach(p=>p.classList.remove('open')); }
 function handleQR(ev){
-  const f=ev.target.files[0];if(!f)return;
-  const r=new FileReader();r.onload=e=>{
-    document.getElementById('qr-img').src=e.target.result;
-    document.getElementById('qr-drop').style.display='none';
-    document.getElementById('qr-preview').style.display='block';
-    try{localStorage.setItem('tk_qr',e.target.result);}catch{}
-    showToast('QR Code 已儲存到本機');
-  };r.readAsDataURL(f);
+  const f = ev.target.files[0]; if(!f) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('qr-img').src = e.target.result;
+    document.getElementById('qr-drop').style.display    = 'none';
+    document.getElementById('qr-preview').style.display = 'block';
+    try{ localStorage.setItem('tk_qr', e.target.result); } catch{}
+    showToast('QR Code 已儲存');
+  };
+  reader.readAsDataURL(f);
 }
-function copyPh(text,el){
-  navigator.clipboard?.writeText(text).catch(()=>{});showToast('已複製：'+text);
-  el.style.background='var(--sakura2)';setTimeout(()=>el.style.background='',600);
+function copyPh(text, el){
+  navigator.clipboard?.writeText(text).catch(()=>{});
+  showToast('已複製：' + text);
+  el.style.background = 'var(--sakura2)';
+  setTimeout(() => el.style.background = '', 600);
 }
 
-// toast
-let toastT=null;
+// ══ Toast ══════════════════════════════════════════════════════════
+let _toastT = null;
 function showToast(msg){
-  const t=document.getElementById('toast');clearTimeout(toastT);
-  t.textContent=msg;t.classList.add('show');toastT=setTimeout(()=>t.classList.remove('show'),2500);
+  const t = document.getElementById('toast');
+  clearTimeout(_toastT);
+  t.textContent = msg;
+  t.classList.add('show');
+  _toastT = setTimeout(() => t.classList.remove('show'), 3000);
 }
 
-// network
-window.addEventListener('online',()=>{isOnline=true;showSync('success','已重新連線',2000);flush().then(()=>{loadExp();loadCL();});});
-window.addEventListener('offline',()=>{isOnline=false;showSync('offline','離線模式',4000);});
+// ══ 網路事件 ══════════════════════════════════════════════════════
+window.addEventListener('online', () => {
+  isOnline = true;
+  showSync('success', '✅ 已重新連線', 2000);
+  flushQueue().then(() => { loadExp(); loadCL(); });
+});
+window.addEventListener('offline', () => {
+  isOnline = false;
+  showSync('offline', '📵 離線模式', 4000);
+});
 
-// init
-document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',ev=>{if(ev.target===o)o.classList.remove('open');}));
-(function(){const q=localStorage.getItem('tk_qr');if(!q)return;const img=document.getElementById('qr-img');if(img){img.src=q;document.getElementById('qr-drop').style.display='none';document.getElementById('qr-preview').style.display='block';}})();
-loadExp();loadCL();
-setInterval(()=>{if(isOnline&&GAS_OK()){loadExp();loadCL();}},60000);
+// ══ 初始化 ══════════════════════════════════════════════════════
+// confirm modal 背景點擊 → 等同取消
+document.querySelectorAll('.modal-overlay').forEach(o => {
+  o.addEventListener('click', ev => {
+    if(ev.target !== o) return;
+    o.classList.remove('open');
+    if(o.id === 'cm' && _cmCb){ _cmCb(false); _cmCb = null; }
+  });
+});
+
+// 還原 QR Code
+(function(){
+  const q = localStorage.getItem('tk_qr');
+  if(!q) return;
+  const img = document.getElementById('qr-img');
+  if(img){
+    img.src = q;
+    document.getElementById('qr-drop').style.display    = 'none';
+    document.getElementById('qr-preview').style.display = 'block';
+  }
+})();
+
+// 啟動
+loadExp();
+loadCL();
+// 每 60 秒自動同步（讓兩人的資料保持一致）
+setInterval(() => { if(isOnline && GAS_OK()){ loadExp(); loadCL(); } }, 60000);
+
 </script>
 </body>
 </html>
