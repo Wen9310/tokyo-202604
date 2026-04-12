@@ -29,7 +29,7 @@
   document.getElementById('pwa-manifest').href = URL.createObjectURL(blob);
 })();
 </script>
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='36' fill='%231a1714'/%3E%3Ctext y='136' x='90' font-size='110' text-anchor='middle'%3E%F0%9F%8C%B8%3C/text%3E%3C/svg%3E">
 <title>東京快閃 2026</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -173,6 +173,37 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
 #cm .modal h3{text-align:center}
 #cm .modal-actions{justify-content:center}
 .btn-danger{flex:2;padding:14px;border-radius:var(--radius-sm);border:none;background:var(--red);color:#fff;font-size:15px;font-weight:700;cursor:pointer}
+
+/* ── BTS 成員卡片 ── */
+.bts-scroll{display:flex;gap:12px;overflow-x:auto;padding:0 20px 8px;scrollbar-width:none}
+.bts-scroll::-webkit-scrollbar{display:none}
+.bts-card{flex-shrink:0;width:150px;background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;transition:transform .15s;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.bts-card:active{transform:scale(.97)}
+.bts-photo{width:100%;height:150px;object-fit:cover;background:linear-gradient(135deg,#ede0ff 0%,#c9b5f0 100%);display:flex;align-items:center;justify-content:center;font-size:48px}
+.bts-body{padding:11px 12px}
+.bts-name{font-size:15px;font-weight:800;line-height:1.1}
+.bts-real{font-size:10px;color:var(--text3);margin-top:1px;letter-spacing:.3px}
+.bts-role{display:inline-block;background:#ede0ff;color:#5b3fa0;border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;margin:7px 0 5px}
+.bts-bday{font-size:11px;color:var(--text2);margin-bottom:7px;font-family:'JetBrains Mono',monospace}
+.bts-tip{background:#f9f5ff;border-radius:8px;padding:8px 10px;font-size:11px;color:#5b3fa0;line-height:1.6;border:1px solid #e4d4ff}
+/* ── 交通接駁 ── */
+.tb-day{margin-bottom:16px}
+.tb-day-hd{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.tb-day-badge{background:var(--text);color:#fff;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:700;font-family:'JetBrains Mono',monospace;flex-shrink:0}
+.tb-day-title{font-size:13px;font-weight:700}
+.tb-route{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin-bottom:8px}
+.tb-route-hd{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--surface2);border-bottom:1px solid var(--border)}
+.tb-route-icon{font-size:15px}
+.tb-route-name{font-size:12px;font-weight:700;flex:1}
+.tb-route-price{font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--accent);font-weight:700}
+.tb-trains{padding:4px 14px 8px}
+.tb-train{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px dashed var(--border)}
+.tb-train:last-child{border-bottom:none}
+.tb-alt{background:#fff3e0;color:#b06000;border-radius:4px;padding:2px 7px;font-size:10px;font-weight:700;flex-shrink:0}
+.tb-times{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;flex:1}
+.tb-arrow{font-size:11px;color:var(--text3)}
+.tb-dur{font-size:11px;color:var(--text3);flex-shrink:0}
+.tb-note{font-size:11px;color:var(--text2);padding:2px 0 6px;line-height:1.6}
 </style>
 </head>
 <body>
@@ -217,6 +248,87 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
       <div class="fs-label">FLIGHTS</div>
       <div class="f-row"><span class="f-num">MM620</span><span class="f-route">桃園 T1 → 成田 T1</span><span class="f-time">02:00→06:30</span></div>
       <div class="f-row"><span class="f-num">IT201</span><span class="f-route">成田 T2 → 桃園 T1</span><span class="f-time">13:30→16:25</span></div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title">交通接駁</div>
+    <div class="transport-block" style="margin:0">
+
+      <!-- 4/18 去程 -->
+      <div class="tb-day">
+        <div class="tb-day-hd">
+          <span class="tb-day-badge">4/18</span>
+          <span class="tb-day-title">去程 Taiwan → Tokyo</span>
+        </div>
+
+        <!-- 機捷 -->
+        <div class="tb-route">
+          <div class="tb-route-hd">
+            <span class="tb-route-icon">🚇</span>
+            <span class="tb-route-name">桃園機場捷運 台北車站 → 桃機 T1</span>
+          </div>
+          <div class="tb-trains">
+            <div class="tb-train">
+              <span class="tb-times">22:30 → 23:08</span>
+              <span class="tb-dur">38 分鐘</span>
+            </div>
+            <div class="tb-note">📍 搭直達車（紫色車廂），月台 B1</div>
+          </div>
+        </div>
+
+        <!-- Skyliner 去程 -->
+        <div class="tb-route">
+          <div class="tb-route-hd">
+            <span class="tb-route-icon">🚄</span>
+            <span class="tb-route-name">Skyliner 成田 T1 → 京成上野</span>
+            <span class="tb-route-price">¥2,520/人</span>
+          </div>
+          <div class="tb-trains">
+            <div class="tb-train">
+              <span class="tb-alt">備選 A</span>
+              <span class="tb-times">07:30 → 08:21</span>
+              <span class="tb-dur">51 分</span>
+            </div>
+            <div class="tb-train">
+              <span class="tb-alt">備選 B</span>
+              <span class="tb-times">08:29 → 09:19</span>
+              <span class="tb-dur">50 分</span>
+            </div>
+            <div class="tb-note">💡 入境快選 A，若人多排隊選 B，車上可開咖啡喝網卡</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4/20 回程 -->
+      <div class="tb-day">
+        <div class="tb-day-hd">
+          <span class="tb-day-badge">4/20</span>
+          <span class="tb-day-title">回程 Tokyo → Taiwan</span>
+        </div>
+
+        <!-- Skyliner 回程 -->
+        <div class="tb-route">
+          <div class="tb-route-hd">
+            <span class="tb-route-icon">🚄</span>
+            <span class="tb-route-name">Skyliner 京成上野 → 成田 T1</span>
+            <span class="tb-route-price">¥2,520/人</span>
+          </div>
+          <div class="tb-trains">
+            <div class="tb-train">
+              <span class="tb-alt">備選 A</span>
+              <span class="tb-times">09:00 → 09:42</span>
+              <span class="tb-dur">42 分</span>
+            </div>
+            <div class="tb-train">
+              <span class="tb-alt">備選 B</span>
+              <span class="tb-times">09:40 → 10:21</span>
+              <span class="tb-dur">41 分</span>
+            </div>
+            <div class="tb-note">💡 班機 13:30，建議搭備選 A 抓緊時間，備選 B 為保險備用</div>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -300,6 +412,13 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
         <div class="tool-card" onclick="showTool('ph')"><div class="tc-emoji">🗣️</div><div class="tc-name">常用日語</div><div class="tc-desc">旅遊必備對話速查</div></div>
         <div class="tool-card" onclick="switchTab('checklist')"><div class="tc-emoji">✅</div><div class="tc-name">出發確認</div><div class="tc-desc">行前準備清單</div></div>
         <div class="tool-card" onclick="openEM2()"><div class="tc-emoji">🆘</div><div class="tc-name">緊急資訊</div><div class="tc-desc">電話、使館、保險</div></div>
+        <div class="tool-card" style="grid-column:1/-1;background:linear-gradient(135deg,#f5eeff,#ede0ff);border-color:#d4b8ff;padding:0;overflow:hidden" onclick="showTool('bts')">
+  <img src="bts.jpg" alt="BTS" style="width:100%;height:140px;object-fit:cover;object-position:center top;display:block">
+  <div style="padding:14px 16px 16px;text-align:center">
+    <div class="tc-name" style="font-size:16px">💜 認識 BTS 七人</div>
+    <div class="tc-desc" style="margin-top:4px">藝名 · 擔當 · 認人小撇步</div>
+  </div>
+</div>
       </div>
     </div>
   </div>
@@ -336,6 +455,120 @@ body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text
       <div class="phrase" onclick="copyPh('助けてください！',this)"><div class="ph-jp">助けてください！</div><div class="ph-rom">Tasukete kudasai!</div><div class="ph-tw">請幫幫我！（緊急）</div></div>
     </div>
   </div>
+  <!-- ══ BTS 成員介紹 ══════════════════════════════════════ -->
+  <div id="tool-bts" class="tool-panel" style="padding:0 0 20px">
+    <div style="display:flex;align-items:center;gap:12px;padding:0 20px 16px">
+      <button onclick="hideTool()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text2)">←</button>
+      <h2 style="font-size:18px;font-weight:700">💜 認識 BTS 七人</h2>
+    </div>
+    <div style="padding:0 20px 12px;font-size:12px;color:var(--text3)">👉 左右滑動查看所有成員</div>
+    <div class="bts-scroll">
+
+      <!-- RM -->
+      <div class="bts-card">
+        <div class="bts-photo">
+          <img src="rm.jpg" alt="RM" style="width:100%;height:100%;object-fit:cover">
+        </div>
+        <div class="bts-body">
+          <div class="bts-name">RM</div>
+          <div class="bts-real">김남준 Kim Namjoon</div>
+          <div class="bts-role">🎤 隊長 · Rap</div>
+          <div class="bts-bday">1994.09.12</div>
+          <div class="bts-tip">全團最高（181cm），說話聲音低沉有磁性，戴眼鏡或帽子最好認</div>
+        </div>
+      </div>
+
+      <!-- Jin -->
+      <div class="bts-card">
+        <div class="bts-photo">
+          <img src="jin.jpg" alt="Jin" style="width:100%;height:100%;object-fit:cover">
+        </div>
+        <div class="bts-body">
+          <div class="bts-name">Jin</div>
+          <div class="bts-real">김석진 Kim Seokjin</div>
+          <div class="bts-role">🎤 大哥 · Vocal</div>
+          <div class="bts-bday">1992.12.04</div>
+          <div class="bts-tip">肩膀最寬、臉最大（自稱宇宙無敵帥），很愛拋飛吻，笑聲超有特色</div>
+        </div>
+      </div>
+
+      <!-- Suga -->
+      <div class="bts-card">
+        <div class="bts-photo">
+          <img src="suga.jpg" alt="Suga" style="width:100%;height:100%;object-fit:cover">
+        </div>
+        <div class="bts-body">
+          <div class="bts-name">Suga</div>
+          <div class="bts-real">민윤기 Min Yoongi</div>
+          <div class="bts-role">🎤 Rap · 作曲</div>
+          <div class="bts-bday">1993.03.09</div>
+          <div class="bts-tip">皮膚白到發光、平時表情最冷靜，饒舌一開口力道十足，反差超大</div>
+        </div>
+      </div>
+
+      <!-- j-hope -->
+      <div class="bts-card">
+        <div class="bts-photo">
+          <img src="jhope.jpg" alt="j-hope" style="width:100%;height:100%;object-fit:cover">
+        </div>
+        <div class="bts-body">
+          <div class="bts-name">j-hope</div>
+          <div class="bts-real">정호석 Jung Hoseok</div>
+          <div class="bts-role">💃 舞蹈主力 · Rap</div>
+          <div class="bts-bday">1994.02.18</div>
+          <div class="bts-tip">笑起來有兩個深梨渦，是全隊的活力擔當，舞台能量最強，一眼就認出</div>
+        </div>
+      </div>
+
+      <!-- Jimin -->
+      <div class="bts-card">
+        <div class="bts-photo">
+          <img src="jimin.jpg" alt="Jimin" style="width:100%;height:100%;object-fit:cover">
+        </div>
+        <div class="bts-body">
+          <div class="bts-name">Jimin</div>
+          <div class="bts-real">박지민 Park Jimin</div>
+          <div class="bts-role">🎤 Vocal · 舞蹈</div>
+          <div class="bts-bday">1995.10.13</div>
+          <div class="bts-tip">聲音偏高且細膩、手特別小，舞台魅力值爆表，側臉有迷人的貓感</div>
+        </div>
+      </div>
+
+      <!-- V -->
+      <div class="bts-card">
+        <div class="bts-photo">
+          <img src="v.jpg" alt="V" style="width:100%;height:100%;object-fit:cover">
+        </div>
+        <div class="bts-body">
+          <div class="bts-name">V</div>
+          <div class="bts-real">김태형 Kim Taehyung</div>
+          <div class="bts-role">🎤 Vocal · 비주얼</div>
+          <div class="bts-bday">1995.12.30</div>
+          <div class="bts-tip">臉部骨架像藝術品、聲音是低音砲，近年氣質越來越有男人味，眼神很迷人</div>
+        </div>
+      </div>
+
+      <!-- Jung Kook -->
+      <div class="bts-card">
+        <div class="bts-photo">
+          <img src="jk.jpg" alt="Jung Kook" style="width:100%;height:100%;object-fit:cover">
+        </div>
+        <div class="bts-body">
+          <div class="bts-name">Jung Kook</div>
+          <div class="bts-real">전정국 Jeon Jungkook</div>
+          <div class="bts-role">🎤 黃金忙內 · All</div>
+          <div class="bts-bday">1997.09.01</div>
+          <div class="bts-tip">眼睛圓圓像兔子超可愛，但力氣超大、全能型選手，唱跳rap樣樣精通</div>
+        </div>
+      </div>
+
+    </div>
+    <div style="margin:16px 20px 0;background:#f5eeff;border-radius:var(--radius-sm);padding:14px 16px;font-size:12px;color:#5b3fa0;line-height:1.8;border:1px solid #d4b8ff">
+      <strong>💜 入坑小筆記</strong><br>
+      照片區域目前為佔位圖，可長按替換成真實照片儲存到相簿，演唱會前對照練習認人！
+    </div>
+  </div>
+
 </div>
 
 <div id="screen-checklist" class="screen">
